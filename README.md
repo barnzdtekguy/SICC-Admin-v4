@@ -1,6 +1,6 @@
 # SICC Admin v4
 
-Church administration portal for Salem International Christian Centre: members, follow-ups, attendance, leadership training, reports and communication, for the Bishop, administrators, pastors, department leaders and KDF coordinators.
+Church administration portal for Salem International Christian Centre: members, follow-ups, service and programme attendance, reports and communication, for the Bishop, administrators, pastors, department leaders and KDF coordinators.
 
 **Stack:** React 18 + Vite · Express · MySQL/MariaDB · no third-party services required.
 
@@ -37,7 +37,8 @@ npm run lint
 | `npm run restore-check -- <file> [--into <scratch-db>]` | Prove a backup restores |
 | `npm run find-duplicates` | List old duplicate attendance rows blocking a DB unique rule |
 | `npm run vapid` | Generate keys for browser push notifications |
-| `npm run smoke` | End-to-end check against a running server on an **empty** database |
+| `npm run smoke` | Read-only deployment check for the API, database, and web app |
+| `npm run test:smoke` | End-to-end test against a server with a fresh, disposable database |
 
 ## Project layout
 ```

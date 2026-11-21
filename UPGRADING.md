@@ -23,7 +23,8 @@
 ## Behaviour changes your users will notice
 - Sign-in: *Keep me signed in* is now off by default and lasts 14 days at most. Idle sessions end after 2 hours.
 - Attendance: one record per service/date/department. After 48 hours a record is **locked**; changes then need a **correction request** approved by the Bishop/Admin (or a reason, if you are the Bishop/Admin).
-- Check-in QR codes: old printed codes **stop working on purpose**. Show the live code on a screen (*Projector mode*) in Leadership Training → QR Attendance. Optional *venue lock* limits check-in to the building.
+- Check-in QR codes: old printed codes **stop working on purpose**. Show the live code on a screen (*Projector mode*) in Programme Attendance. Optional *venue lock* limits check-in to the building.
+- The 32-day programme is retired on upgrade. Existing attendance and audit records are retained, and pending correction requests for the programme are cancelled.
 - Staff accounts are **deactivated, not deleted**, so history stays attributed.
 - Admins can no longer create or promote Bishop/Admin accounts. The Bishop does it from *User Accounts*.
 - "Register Member" requires the person's consent; duplicates (same name + phone) are flagged.

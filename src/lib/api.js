@@ -11,7 +11,7 @@ export class ApiError extends Error {
 }
 
 // Paths that may be saved on the device and replayed when the connection returns.
-const QUEUEABLE = [/^\/attendance$/, /^\/programme-attendance-records$/, /^\/greatness\/attendance$/];
+const QUEUEABLE = [/^\/attendance$/, /^\/programme-attendance-records$/];
 
 export async function apiRequest(path, options = {}) {
   const { method = 'GET', body, queueable = false, signal } = options;

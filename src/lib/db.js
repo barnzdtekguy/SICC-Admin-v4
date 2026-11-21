@@ -97,22 +97,6 @@ export async function saveSMSConfig(config) {
 export const sendSms = (audience, message) => mutationResult('/messages/sms', { method: 'POST', body: { audience, message } });
 export const getMessageStatus = () => apiRequest('/messages/status');
 
-export async function getGreatnessAttendees() {
-  return apiRequest('/greatness/attendees');
-}
-
-export async function getGreatnessAttendance(day) {
-  return apiRequest(`/greatness/attendance${queryString({ day })}`);
-}
-
-export async function createGreatnessAttendee(attendee) {
-  return mutationResult('/greatness/attendees', { method: 'POST', body: attendee });
-}
-
-export async function saveGreatnessAttendance(record) {
-  return mutationResult('/greatness/attendance', { method: 'POST', body: record, queueable: true });
-}
-
 export async function getProgrammes(publicCheckIn = false) {
   return apiRequest(`/programmes${queryString({ public: publicCheckIn ? '1' : '' })}`);
 }

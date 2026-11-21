@@ -109,6 +109,35 @@ describe('routing and auth gates', () => {
   });
 });
 
+describe('programme check-in', () => {
+  const programme = { id: 'sunday-service', name: 'Sunday Service', programme_type: 'service' };
+
+  it('opens programme attendance from the dashboard', async () => {
+    const calls = mockApi({ '/auth/me': session(), '/programmes': [[programme]], '/checkin/session': { token: 'current', refresh_in: 60 } });
+    goto('/app/programmes');
+    render(<App />);
+    expect(await screen.findByLabelText('Programme')).toHaveValue('sunday-service');
+    expect(screen.queryByRole('button', { name: 'Leadership Training' })).toBeNull();
+    await waitFor(() => expect(calls.some(c => c.path === '/programme-attendance-records')).toBe(true));
+  });
+
+  it('shows that a retired programme is unavailable when someone opens an old QR link', async () => {
+    mockApi({ '/programmes': [[programme]] });
+    goto('/app/greatness?checkin=1&programme=greatness-32-days&day=1');
+    render(<App />);
+    expect(await screen.findByText(/this programme is unavailable/i)).toBeInTheDocument();
+    expect(screen.queryByLabelText('Full Name')).toBeNull();
+  });
+
+  it('opens the public check-in form for a current programme', async () => {
+    mockApi({ '/programmes': [[programme]] });
+    goto('/app/programmes?checkin=1&programme=sunday-service&t=current');
+    render(<App />);
+    expect(await screen.findByLabelText('Full Name')).toBeInTheDocument();
+    expect(screen.getByText('Sunday Service')).toBeInTheDocument();
+  });
+});
+
 it('keeps the Pastor follow-up draft after a rejected save and allows retry', async () => {
   let reject = true;
   mockApi({

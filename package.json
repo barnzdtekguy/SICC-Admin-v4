@@ -19,6 +19,7 @@
     "vapid": "node server/scripts/vapid.js",
     "test:ui": "vitest run",
     "test:all": "npm test && npm run test:ui",
+    "test:smoke": "node scripts/tests/smoke.mjs",
     "find-duplicates": "node server/scripts/find-duplicates.js",
     "smoke": "node scripts/smoke.mjs"
   },

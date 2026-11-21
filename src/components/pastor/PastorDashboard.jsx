@@ -5,10 +5,10 @@ import { Checkbox, StatCard, Panel, Badge, DataTable, Btn, Modal, Input, Select,
 import { getMembers, createMember, getFollowUps, createFollowUp, addLog } from '../../lib/db';
 import { DEPARTMENTS, AFFINITY_GROUPS, MEMBER_STATUSES, SPIRITUAL_STATUSES, FOLLOWUP_METHODS, FOLLOWUP_STATUSES, matchKDFArea } from '../../data/constants';
 import { Users, Star, CheckSquare, Phone, ClipboardList, Activity, MapPin, UserPlus, TrendingUp, ChevronRight, BookOpen, HeartHandshake } from 'lucide-react';
-import LeadershipTraining from './LeadershipTraining';
+import ProgrammeAttendance from './ProgrammeAttendance';
 
 export default function PastorDashboard({ activeTab }) {
-  const map = { overview: Overview, register: RegisterMember, myMembers: MyMembers, followup: FollowUp, greatness: LeadershipTraining, reports: Reports };
+  const map = { overview: Overview, register: RegisterMember, myMembers: MyMembers, followup: FollowUp, programmes: ProgrammeAttendance, reports: Reports };
   const Comp = map[activeTab] || Overview;
   return <div className="pastor-dashboard"><Comp /></div>;
 }
@@ -52,7 +52,7 @@ function Overview() {
           <h2 className="pastor-section-title">Suggested For You</h2>
           <div className="pastor-suggestions">
             <button type="button" onClick={() => open('followup')}><span>Connect with someone today</span><HeartHandshake size={66} strokeWidth={1.3} aria-hidden/><small>Record a follow-up</small></button>
-            <button type="button" onClick={() => open('greatness')}><span>Grow as a leader</span><BookOpen size={66} strokeWidth={1.3} aria-hidden/><small>Leadership Training</small></button>
+            <button type="button" onClick={() => open('programmes')}><span>Manage check-in</span><BookOpen size={66} strokeWidth={1.3} aria-hidden/><small>Programme Attendance</small></button>
           </div>
         </section>
       </div>

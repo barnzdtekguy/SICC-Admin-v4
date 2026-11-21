@@ -34,5 +34,8 @@ Logs are JSON, one line per request, with a `request_id`. When a user reports "a
 Optional settings include `ATTENDANCE_LOCK_HOURS` (default 48), `CHECKIN_ROTATE_SECONDS` (60), `CHECKIN_MAX_PER_DEVICE` (2: a husband checking in his wife is fine, ten people on one phone is not), `SESSION_IDLE_MINUTES` (120).
 
 ## Verifying a fresh install
-After first deploy, on an **empty** database you can run the end-to-end smoke test (it creates data, so never run it on live data):
-`BASE_URL=https://your-domain BOOT_EMAIL=... BOOT_PASSWORD=... npm run smoke`
+Run the read-only deployment check against the running site:
+`BASE_URL=https://your-domain npm run smoke`
+
+To exercise sign-in, account creation, member registration, and messaging, start a test server with a fresh, disposable database and its own bootstrap account:
+`BASE_URL=http://localhost:3001 BOOT_EMAIL=... BOOT_PASSWORD=... npm run test:smoke`

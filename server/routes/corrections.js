@@ -7,6 +7,7 @@ const { secured, requirePerm } = require('../middleware');
 const { can, PRIVILEGED } = require('../permissions');
 const { audit, recordRevision } = require('../lib/audit');
 const { notify, notifyRoles } = require('../lib/notify');
+const { isRetiredProgramme } = require('../lib/programmes');
 
 const router = express.Router();
 const STATUSES = ['Present', 'Absent', 'Late', 'Excused'];
@@ -31,11 +32,6 @@ const ENTITIES = {
     label: r => `${r.programme_name} · ${r.attendance_date} · ${r.attendee_name}`,
     clean(p) { if (!STATUSES.includes(p.status)) throw new HttpError(400, `status must be one of: ${STATUSES.join(', ')}.`); return { status: p.status }; },
   },
-  greatness_attendance: {
-    table: 'greatness_attendance', perm: 'training.mark', fields: ['status'],
-    label: r => `Leadership Training · day ${r.day_number}`,
-    clean(p) { if (!STATUSES.includes(p.status)) throw new HttpError(400, `status must be one of: ${STATUSES.join(', ')}.`); return { status: p.status }; },
-  },
 };
 
 const shape = r => ({ ...r, proposed: JSON.parse(r.proposed_json || '{}'), current: JSON.parse(r.current_json || '{}'), proposed_json: undefined, current_json: undefined });
@@ -57,6 +53,7 @@ router.post('/corrections', ...secured, requirePerm('corrections.request'), asyn
   if (reason.length < 10) throw new HttpError(400, 'Explain the correction in at least 10 characters.');
   const row = (await query(`SELECT * FROM ${def.table} WHERE id = ?`, [String(entityId || '')]))[0];
   if (!row) throw new HttpError(404, 'Record not found.');
+  if (type === 'programme_record' && isRetiredProgramme(row.programme_id, row.programme_type)) throw new HttpError(410, 'This programme has been retired.');
   if (type === 'attendance' && req.profile.role === 'department_leader' && row.dept_name !== req.profile.department) throw new HttpError(403, 'You can only request corrections for your own department.');
   const proposed = def.clean(req.body?.proposed || {});
   if (!Object.keys(proposed).length) throw new HttpError(400, 'Provide the corrected value.');
@@ -78,11 +75,13 @@ async function decide(req, res, approve) {
   if (request.requested_by === req.profile.id) throw new HttpError(403, 'You cannot decide your own request. Another leader must approve it.');
   const note = str(req.body?.note, { max: 600, required: !approve, field: 'A note explaining the rejection' });
   const def = ENTITIES[request.entity_type];
+  if (!def) throw new HttpError(410, 'This record type is no longer available.');
   if (approve) {
     const proposed = def.clean(JSON.parse(request.proposed_json));
     await transaction(async conn => {
       const [rows] = await conn.execute(`SELECT * FROM ${def.table} WHERE id = ? FOR UPDATE`, [request.entity_id]);
       if (!rows[0]) throw new HttpError(404, 'The record no longer exists.');
+      if (request.entity_type === 'programme_record' && isRetiredProgramme(rows[0].programme_id, rows[0].programme_type)) throw new HttpError(410, 'This programme has been retired.');
       await recordRevision(conn, { entity_type: request.entity_type, entity_id: request.entity_id, snapshot: rows[0], reason: `Correction approved: ${request.reason}`, actor: req.profile });
       const fields = Object.keys(proposed);
       const extra = def.afterApply ? Object.keys(def.afterApply) : [];

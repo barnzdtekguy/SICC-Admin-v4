@@ -74,29 +74,6 @@ CREATE TABLE IF NOT EXISTS attendance (
   CONSTRAINT attendance_recorder_fk FOREIGN KEY (recorded_by) REFERENCES profiles(id) ON DELETE SET NULL
 ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
-CREATE TABLE IF NOT EXISTS greatness_attendees (
-  id CHAR(36) PRIMARY KEY,
-  name VARCHAR(240) NOT NULL,
-  phone VARCHAR(40) NULL,
-  phone_normalized VARCHAR(40) NULL,
-  email VARCHAR(254) NULL,
-  department VARCHAR(180) NULL,
-  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  INDEX greatness_attendees_phone_idx (phone),
-  INDEX greatness_attendees_phone_normalized_idx (phone_normalized)
-) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-
-CREATE TABLE IF NOT EXISTS greatness_attendance (
-  id CHAR(36) PRIMARY KEY,
-  attendee_id CHAR(36) NOT NULL,
-  day_number INT NOT NULL,
-  status VARCHAR(30) NOT NULL DEFAULT 'Present',
-  marked_by VARCHAR(160) NULL,
-  marked_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  UNIQUE KEY greatness_attendance_day_unique (attendee_id, day_number),
-  CONSTRAINT greatness_attendance_attendee_fk FOREIGN KEY (attendee_id) REFERENCES greatness_attendees(id) ON DELETE CASCADE
-) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-
 CREATE TABLE IF NOT EXISTS attendance_programmes (
   id VARCHAR(120) PRIMARY KEY,
   name VARCHAR(180) NOT NULL,
@@ -169,7 +146,6 @@ CREATE TABLE IF NOT EXISTS sms_config (
 ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 INSERT INTO attendance_programmes (id, name, programme_type, start_date, total_days, is_active) VALUES
-  ('greatness-32-days', 'Leadership Training', '32_days', CURRENT_DATE, 32, 1),
   ('sunday-service', 'Sunday Service', 'service', NULL, NULL, 1),
   ('mid-week-service', 'Mid-Week Service', 'service', NULL, NULL, 1),
   ('prayer-night', 'Prayer Night', 'service', NULL, NULL, 1),

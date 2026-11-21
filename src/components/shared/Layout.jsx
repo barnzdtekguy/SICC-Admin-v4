@@ -12,13 +12,13 @@ import CommandPalette from './CommandPalette';
 import MemberDrawer from './MemberDrawer';
 import {
   LayoutDashboard, TrendingUp, UserCog, ClipboardList, MapPin, Building2, Phone, Radio, BarChart2, Pin, Users, CheckSquare,
-  Settings, PlusCircle, LogOut, ChevronLeft, ChevronRight, Star, Menu, X, ShieldCheck, ScrollText, Inbox, LineChart, Search, Sun, Moon, Download, WifiOff, RefreshCw, Home, BookOpen, MoreHorizontal,
+  Settings, PlusCircle, LogOut, ChevronLeft, ChevronRight, QrCode, Menu, X, ShieldCheck, ScrollText, Inbox, LineChart, Search, Sun, Moon, Download, WifiOff, RefreshCw, Home, BookOpen, MoreHorizontal,
 } from 'lucide-react';
 
 const ICON = {
   overview: LayoutDashboard, growth: TrendingUp, staff: UserCog, members: ClipboardList, kdf: MapPin, departments: Building2, followups: Phone,
   communication: Radio, reports: BarChart2, assignments: Pin, users: Users, attendance: CheckSquare, settings: Settings, register: PlusCircle,
-  myMembers: ClipboardList, followup: Phone, deptMembers: Users, kdfMembers: Users, greatness: Star, security: ShieldCheck, audit: ScrollText, approvals: Inbox, insights: LineChart,
+  myMembers: ClipboardList, followup: Phone, deptMembers: Users, kdfMembers: Users, programmes: QrCode, security: ShieldCheck, audit: ScrollText, approvals: Inbox, insights: LineChart,
 };
 
 const GOV = [
@@ -31,17 +31,17 @@ const SECURITY = { key: 'security', label: 'Security & Devices', group: 'Account
 export const NAV = {
   [ROLES.BISHOP]: [
     { key: 'overview', label: 'Overview' }, { key: 'growth', label: 'Church Growth' }, { key: 'staff', label: 'Staff Monitor' }, { key: 'members', label: 'All Members' },
-    { key: 'kdf', label: 'KDF Areas' }, { key: 'departments', label: 'Departments' }, { key: 'followups', label: 'Follow-Up Reports' }, { key: 'greatness', label: 'Leadership Training' },
+    { key: 'kdf', label: 'KDF Areas' }, { key: 'departments', label: 'Departments' }, { key: 'followups', label: 'Follow-Up Reports' }, { key: 'programmes', label: 'Programme Attendance' },
     { key: 'communication', label: 'Communication' }, { key: 'reports', label: 'Reports' }, { key: 'assignments', label: 'Assignments' }, { key: 'users', label: 'User Accounts', group: 'Governance' }, ...GOV, SECURITY,
   ],
   [ROLES.ADMIN]: [
     { key: 'overview', label: 'Dashboard' }, { key: 'users', label: 'User Management' }, { key: 'staff', label: 'Staff Management' }, { key: 'members', label: 'All Members' },
     { key: 'departments', label: 'Departments' }, { key: 'kdf', label: 'KDF Management' }, { key: 'attendance', label: 'Attendance' }, { key: 'followups', label: 'Follow-Up Reports' },
-    { key: 'greatness', label: 'Leadership Training' }, { key: 'reports', label: 'Reports' }, { key: 'settings', label: 'Settings' }, ...GOV, SECURITY,
+    { key: 'programmes', label: 'Programme Attendance' }, { key: 'reports', label: 'Reports' }, { key: 'settings', label: 'Settings' }, ...GOV, SECURITY,
   ],
   [ROLES.PASTOR]: [
     { key: 'overview', label: 'My Dashboard' }, { key: 'register', label: 'Register Member' }, { key: 'myMembers', label: 'My Members' }, { key: 'followup', label: 'Follow-Up' },
-    { key: 'greatness', label: 'Leadership Training' }, { key: 'reports', label: 'My Reports' }, { key: 'approvals', label: 'My Corrections', group: 'Governance' }, SECURITY,
+    { key: 'programmes', label: 'Programme Attendance' }, { key: 'reports', label: 'My Reports' }, { key: 'approvals', label: 'My Corrections', group: 'Governance' }, SECURITY,
   ],
   [ROLES.DEPARTMENT_LEADER]: [
     { key: 'overview', label: 'My Dashboard' }, { key: 'deptMembers', label: 'Dept Members' }, { key: 'attendance', label: 'Attendance' },

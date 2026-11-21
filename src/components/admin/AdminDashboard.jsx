@@ -8,10 +8,10 @@ import { getMembers, getProfiles, createProfile, deleteProfile, updateProfile, r
 import { DEPARTMENTS, KDF_AREAS, ROLES, ROLE_COLORS, ROLE_LABELS, SERVICE_TYPES } from '../../data/constants';
 import { Users, UserCheck, MapPin, Building2, CheckSquare, TrendingUp, Phone, ClipboardList, BarChart2, Calendar, Activity, Briefcase, MessageSquare, Map, Settings, UserPlus } from 'lucide-react';
 
-import LeadershipTraining from '../pastor/LeadershipTraining';
+import ProgrammeAttendance from '../pastor/ProgrammeAttendance';
 
 export default function AdminDashboard({ activeTab, setActiveTab }) {
-  const map = { overview: Overview, users: UserManagement, staff: StaffManagement, members: AllMembers, departments: DeptMgmt, kdf: KDFMgmt, attendance: Attendance, followups: FollowUps, greatness: LeadershipTraining, reports: Reports, settings: Settings_ };
+  const map = { overview: Overview, users: UserManagement, staff: StaffManagement, members: AllMembers, departments: DeptMgmt, kdf: KDFMgmt, attendance: Attendance, followups: FollowUps, programmes: ProgrammeAttendance, reports: Reports, settings: Settings_ };
   const Comp = map[activeTab] || Overview;
   return <Comp setActiveTab={setActiveTab} />;
 }

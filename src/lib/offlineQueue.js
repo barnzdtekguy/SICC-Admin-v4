@@ -3,6 +3,7 @@
 const DB = 'sicc-outbox';
 const STORE = 'items';
 const listeners = new Set();
+const isRetired = item => item.retired || item.path === '/greatness/attendance';
 
 const open = () => new Promise((resolve, reject) => {
   if (typeof indexedDB === 'undefined') { reject(new Error('IndexedDB unavailable')); return; }
@@ -25,7 +26,7 @@ const tx = async (mode, fn) => {
 const notify = async () => { const n = await pendingCount(); listeners.forEach(fn => fn(n)); };
 
 export async function pendingCount() {
-  try { return await tx('readonly', s => s.count()); } catch { return 0; }
+  try { return (await tx('readonly', s => s.getAll())).filter(item => !isRetired(item)).length; } catch { return 0; }
 }
 
 export function onQueueChange(fn) { listeners.add(fn); pendingCount().then(fn); return () => listeners.delete(fn); }
@@ -43,9 +44,11 @@ export async function flushQueue() {
   try {
     const items = await tx('readonly', s => s.getAll());
     for (const item of items) {
+      if (isRetired(item)) continue;
       try {
         const response = await fetch(`/api${item.path}`, { method: item.method, credentials: 'include', headers: { 'Content-Type': 'application/json', 'X-SICC-Client': 'web' }, body: JSON.stringify(item.body) });
         if (response.ok || [400, 409, 423].includes(response.status)) { await tx('readwrite', s => s.delete(item.id)); sent += response.ok ? 1 : 0; failed += response.ok ? 0 : 1; }
+        else if (response.status === 410) { await tx('readwrite', s => s.put({ ...item, retired: true })); failed += 1; }
         else if (response.status === 401) break; // signed out: keep the items, try after sign-in
       } catch { break; }
     }

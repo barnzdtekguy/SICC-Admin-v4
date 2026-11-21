@@ -7,12 +7,13 @@ const { asyncRoute, HttpError, sendData, str, oneOf, validDate, todayStr, normal
 const { authenticate, enforceRestrictions, secured, requirePerm, publicCheckInLimiter } = require('../middleware');
 const { PRIVILEGED } = require('../permissions');
 const { audit, recordRevision } = require('../lib/audit');
-const { lockedByDate, lockedByCreation, requireReason } = require('../lib/locks');
+const { lockedByDate, requireReason } = require('../lib/locks');
 const { checkinToken, verifyCheckinToken, hmac, safeEqual, randomToken } = require('../lib/crypto');
+const { RETIRED_PROGRAMME_ID, RETIRED_PROGRAMME_TYPE, isRetiredProgramme } = require('../lib/programmes');
 
 const router = express.Router();
 const STATUSES = ['Present', 'Absent', 'Late', 'Excused'];
-const GREATNESS_ID = 'greatness-32-days';
+const currentProgrammeRecords = 'programme_id <> ? AND programme_type <> ?';
 const identityKey = (phone, name) => normalizePhone(phone) ? phoneLast10(phone) : `n:${String(name || '').trim().toLowerCase()}`;
 const isPrivileged = p => PRIVILEGED.includes(p.role);
 
@@ -23,7 +24,7 @@ const PUBLIC_FIELDS = r => ({
 });
 
 router.get('/programmes', asyncRoute(async (req, res, next) => {
-  const rows = await query('SELECT * FROM attendance_programmes WHERE is_active = 1 ORDER BY created_at DESC');
+  const rows = await query('SELECT * FROM attendance_programmes WHERE is_active = 1 AND id <> ? AND programme_type <> ? ORDER BY created_at DESC', [RETIRED_PROGRAMME_ID, RETIRED_PROGRAMME_TYPE]);
   if (req.query.public === '1') return sendData(res, rows.map(PUBLIC_FIELDS));
   return authenticate(req, res, error => (error ? next(error) : enforceRestrictions(req, res, err2 => (err2 ? next(err2) : sendData(res, rows)))));
 }));
@@ -32,13 +33,15 @@ router.post('/programmes', ...secured, requirePerm('programmes.manage'), asyncRo
   const b = req.body || {};
   const id = str(b.id, { max: 120, required: true, field: 'Programme id' });
   if (!/^[a-z0-9][a-z0-9-]{2,119}$/.test(id)) throw new HttpError(400, 'Programme id may only contain lowercase letters, numbers and dashes.');
+  const type = str(b.programme_type, { max: 60 }) || 'custom';
+  if (isRetiredProgramme(id, type)) throw new HttpError(400, 'This programme has been retired.');
   const name = str(b.name, { max: 180, required: true, field: 'Programme name' });
   for (const k of ['start_date', 'end_date']) if (b[k] && !validDate(b[k])) throw new HttpError(400, `${k} must be a valid date.`);
   if (b.start_date && b.end_date && b.end_date < b.start_date) throw new HttpError(400, 'The end date must be on or after the start date.');
   const totalDays = b.total_days ? Number(b.total_days) : null;
   if (totalDays !== null && (!Number.isInteger(totalDays) || totalDays < 1 || totalDays > 366)) throw new HttpError(400, 'Total days must be between 1 and 366.');
   await query('INSERT INTO attendance_programmes (id, name, programme_type, start_date, end_date, total_days, is_active, created_by, created_by_name) VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)',
-    [id, name, str(b.programme_type, { max: 60 }) || 'custom', b.start_date || null, b.end_date || null, totalDays, req.profile.id, req.profile.name]);
+    [id, name, type, b.start_date || null, b.end_date || null, totalDays, req.profile.id, req.profile.name]);
   const row = (await query('SELECT * FROM attendance_programmes WHERE id = ?', [id]))[0];
   await audit(req, { action: 'programme.create', entity_type: 'programme', entity_id: id, detail: name, after: row });
   sendData(res, row, 201);
@@ -47,6 +50,7 @@ router.post('/programmes', ...secured, requirePerm('programmes.manage'), asyncRo
 router.patch('/programmes/:id', ...secured, requirePerm('programmes.manage'), asyncRoute(async (req, res) => {
   const before = (await query('SELECT * FROM attendance_programmes WHERE id = ?', [req.params.id]))[0];
   if (!before) throw new HttpError(404, 'Programme not found.');
+  if (isRetiredProgramme(before.id, before.programme_type)) throw new HttpError(410, 'This programme has been retired.');
   const b = req.body || {}; const set = {};
   if (b.name !== undefined) set.name = str(b.name, { max: 180, required: true, field: 'Name' });
   if (b.is_active !== undefined) set.is_active = b.is_active ? 1 : 0;
@@ -70,82 +74,26 @@ router.patch('/programmes/:id', ...secured, requirePerm('programmes.manage'), as
 
 // Live rotating token the projector screen embeds in the QR code.
 router.get('/checkin/session', ...secured, requirePerm('checkin.control'), asyncRoute(async (req, res) => {
-  const programme = (await query('SELECT * FROM attendance_programmes WHERE id = ? AND is_active = 1', [String(req.query.programme_id || '')]))[0];
-  if (!programme) throw new HttpError(404, 'Programme not found.');
+  const programme = await loadProgramme(String(req.query.programme_id || ''));
   const rotate = config.checkin.rotateSeconds;
   const nextRotation = rotate - (Math.floor(Date.now() / 1000) % rotate);
   sendData(res, { token: checkinToken(programme.id, rotate), rotate_seconds: rotate, refresh_in: nextRotation, valid_for: nextRotation + rotate, require_token: Boolean(programme.require_token), geo_required: programme.geo_lat !== null });
 }));
 
-// ------------------------------------------------------------------ Leadership Training (32 days)
-router.get('/greatness/attendees', ...secured, requirePerm('training.mark'), asyncRoute(async (_req, res) => {
-  sendData(res, await query('SELECT * FROM greatness_attendees ORDER BY name'));
-}));
-
-router.post('/greatness/attendees', ...secured, requirePerm('training.mark'), asyncRoute(async (req, res) => {
-  const b = req.body || {};
-  const name = str(b.name, { max: 240, required: true, field: 'Name' });
-  const phone = str(b.phone, { max: 40 });
-  if (phone && (normalizePhone(phone).length < 7 || normalizePhone(phone).length > 15)) throw new HttpError(400, 'Enter a valid phone number.');
-  const id = crypto.randomUUID();
-  await query('INSERT INTO greatness_attendees (id, name, phone, phone_normalized, phone_last10, email, department) VALUES (?, ?, ?, ?, ?, ?, ?)',
-    [id, name, phone, normalizePhone(phone) || null, phoneLast10(phone), str(b.email, { max: 254 }), str(b.department, { max: 180 })]);
-  const row = (await query('SELECT * FROM greatness_attendees WHERE id = ?', [id]))[0];
-  await audit(req, { action: 'training.attendee_add', entity_type: 'greatness_attendee', entity_id: id, detail: name });
-  sendData(res, row, 201);
-}));
-
-router.get('/greatness/attendance', ...secured, requirePerm('training.mark'), asyncRoute(async (req, res) => {
-  const rows = req.query.day ? await query('SELECT * FROM greatness_attendance WHERE day_number = ?', [Number(req.query.day) || 0]) : await query('SELECT * FROM greatness_attendance');
-  sendData(res, rows);
-}));
-
-router.post('/greatness/attendance', ...secured, requirePerm('training.mark'), asyncRoute(async (req, res) => {
-  const b = req.body || {};
-  const day = Number(b.day_number);
-  if (!Number.isInteger(day) || day < 1 || day > 32) throw new HttpError(400, 'Attendance day must be between 1 and 32.');
-  const status = oneOf(b.status, STATUSES, 'Status');
-  if (!status) throw new HttpError(400, 'Status is required.');
-  const attendee = (await query('SELECT id, name FROM greatness_attendees WHERE id = ?', [String(b.attendee_id || '')]))[0];
-  if (!attendee) throw new HttpError(404, 'Attendee not found.');
-  const result = await transaction(async conn => {
-    const [rows] = await conn.execute('SELECT * FROM greatness_attendance WHERE attendee_id = ? AND day_number = ? FOR UPDATE', [attendee.id, day]);
-    const existing = rows[0];
-    if (!existing) {
-      const id = crypto.randomUUID();
-      await conn.execute('INSERT INTO greatness_attendance (id, attendee_id, day_number, status, marked_by, marked_by_id) VALUES (?, ?, ?, ?, ?, ?)', [id, attendee.id, day, status, req.profile.name, req.profile.id]);
-      return { id, created: true, status };
-    }
-    if (existing.status === status) return { id: existing.id, unchanged: true, status };
-    const [prog] = await conn.execute('SELECT start_date FROM attendance_programmes WHERE id = ?', [GREATNESS_ID]);
-    let locked;
-    if (prog[0]?.start_date) { const d = new Date(`${String(prog[0].start_date).slice(0, 10)}T00:00:00Z`); d.setUTCDate(d.getUTCDate() + day - 1); locked = lockedByDate(d.toISOString().slice(0, 10)); }
-    else locked = lockedByCreation(existing.marked_at);
-    let reason = null;
-    if (locked) {
-      if (!isPrivileged(req.profile)) throw new HttpError(423, 'This day is locked. Submit a correction request for approval.', { code: 'locked', record_id: existing.id });
-      reason = requireReason(b.reason, 'This day is locked');
-    }
-    await recordRevision(conn, { entity_type: 'greatness_attendance', entity_id: existing.id, snapshot: existing, reason, actor: req.profile });
-    await conn.execute('UPDATE greatness_attendance SET status = ?, marked_by = ?, marked_by_id = ? WHERE id = ?', [status, req.profile.name, req.profile.id, existing.id]);
-    return { id: existing.id, before: existing.status, status, reason };
-  });
-  if (!result.unchanged) await audit(req, { action: result.created ? 'training.mark' : 'training.remark', entity_type: 'greatness_attendance', entity_id: result.id, detail: `${attendee.name} day ${day}: ${result.before ? `${result.before} → ` : ''}${status}${result.reason ? ` (${result.reason})` : ''}` });
-  sendData(res, (await query('SELECT * FROM greatness_attendance WHERE id = ?', [result.id]))[0]);
-}));
-
 // ------------------------------------------------------------------ programme attendance records
 router.get('/programme-attendance-records', ...secured, requirePerm('training.mark'), asyncRoute(async (req, res) => {
-  const where = []; const values = [];
+  const where = [currentProgrammeRecords]; const values = [RETIRED_PROGRAMME_ID, RETIRED_PROGRAMME_TYPE];
   if (req.query.programmeId) { where.push('programme_id = ?'); values.push(String(req.query.programmeId)); }
   if (validDate(req.query.date)) { where.push('attendance_date = ?'); values.push(req.query.date); }
-  sendData(res, await query(`SELECT * FROM programme_attendance_records${where.length ? ` WHERE ${where.join(' AND ')}` : ''} ORDER BY created_at DESC LIMIT 5000`, values));
+  sendData(res, await query(`SELECT * FROM programme_attendance_records WHERE ${where.join(' AND ')} ORDER BY created_at DESC LIMIT 5000`, values));
 }));
 
 async function loadProgramme(id, conn) {
+  if (isRetiredProgramme(id)) throw new HttpError(410, 'This programme has been retired.');
   const run = conn ? (s, v) => conn.execute(s, v).then(r => r[0]) : query;
-  const programme = (await run('SELECT * FROM attendance_programmes WHERE id = ? AND is_active = 1 LIMIT 1', [id]))[0];
-  if (!programme) throw new HttpError(404, 'This attendance programme is not available.');
+  const programme = (await run('SELECT * FROM attendance_programmes WHERE id = ? LIMIT 1', [id]))[0];
+  if (programme && isRetiredProgramme(programme.id, programme.programme_type)) throw new HttpError(410, 'This programme has been retired.');
+  if (!programme?.is_active) throw new HttpError(404, 'This attendance programme is not available.');
   return programme;
 }
 
@@ -225,14 +173,12 @@ function haversineMeters(lat1, lng1, lat2, lng2) {
 async function findPerson(name, phone, dob) {
   const last10 = phoneLast10(phone);
   const digits = normalizePhone(phone);
-  const [members, attendees, records] = await Promise.all([
+  const [members, records] = await Promise.all([
     query("SELECT id, first_name, last_name, phone, department, status, date_of_birth FROM members WHERE phone_last10 = ? AND deleted_at IS NULL LIMIT 50", [last10]),
-    query('SELECT id, name, phone, department, email FROM greatness_attendees WHERE phone_last10 = ? LIMIT 50', [last10]),
-    query('SELECT id, attendee_name, phone, department, church_position, salem_family, date_of_birth, email FROM programme_attendance_records WHERE phone_last10 = ? ORDER BY created_at DESC LIMIT 50', [last10]),
+    query(`SELECT id, attendee_name, phone, department, church_position, salem_family, date_of_birth, email FROM programme_attendance_records WHERE phone_last10 = ? AND ${currentProgrammeRecords} ORDER BY created_at DESC LIMIT 50`, [last10, RETIRED_PROGRAMME_ID, RETIRED_PROGRAMME_TYPE]),
   ]);
   const people = [
     ...members.map(m => ({ source: 'members', id: m.id, name: `${m.first_name} ${m.last_name}`.trim(), phone: m.phone, department: m.department, church_position: m.status === 'Worker' ? 'Member' : m.status || 'Member', date_of_birth: m.date_of_birth })),
-    ...attendees.map(a => ({ source: 'greatness_attendees', id: a.id, name: a.name, phone: a.phone, department: a.department, church_position: 'Member', email: a.email })),
     ...records.map(r => ({ source: 'programme_attendance_records', id: r.id, name: r.attendee_name, phone: r.phone, department: r.department, church_position: r.church_position, salem_family: r.salem_family, date_of_birth: r.date_of_birth, email: r.email })),
   ];
   return people.find(p => normalizePhone(p.phone) === digits && p.name.trim().toLowerCase() === name.trim().toLowerCase() && p.date_of_birth && String(p.date_of_birth).slice(0, 10) === dob) || null;
@@ -271,12 +217,6 @@ router.post('/public/attendance/check-in', publicCheckInLimiter, asyncRoute(asyn
     noteFailedLookup(last10);
     throw new HttpError(403, 'We could not verify your details. Ask church staff to confirm your name, phone number and date of birth are recorded correctly.');
   }
-  let dayNumber = null;
-  if (programme.programme_type === '32_days') {
-    if (!programme.start_date) throw new HttpError(400, 'The programme start date has not been configured.');
-    dayNumber = Math.floor((Date.parse(`${today}T00:00:00Z`) - Date.parse(`${String(programme.start_date).slice(0, 10)}T00:00:00Z`)) / 86400000) + 1;
-    if (dayNumber < 1 || dayNumber > 32) throw new HttpError(400, 'Today is outside this programme.');
-  }
   const key = identityKey(person.phone, person.name);
   const record = await transaction(async conn => {
     await conn.execute('SELECT id FROM attendance_programmes WHERE id = ? FOR UPDATE', [programme.id]);
@@ -284,19 +224,10 @@ router.post('/public/attendance/check-in', publicCheckInLimiter, asyncRoute(asyn
     if (dup.length) throw new HttpError(409, 'Your attendance has already been recorded for today.');
     const id = crypto.randomUUID();
     await conn.execute(
-      `INSERT INTO programme_attendance_records (id, programme_id, programme_name, programme_type, attendance_date, day_number, attendee_source, attendee_source_id, attendee_name, phone, phone_normalized, phone_last10,
-        salem_family, date_of_birth, email, department, church_position, status, marked_by, source, identity_key, device_id, ip, geo_verified) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Present', 'QR Self Check-in', 'qr', ?, ?, ?, ?)`,
-      [id, programme.id, programme.name, programme.programme_type, today, dayNumber, person.source, person.id, person.name, person.phone, normalizePhone(person.phone), last10, person.salem_family || null,
+      `INSERT INTO programme_attendance_records (id, programme_id, programme_name, programme_type, attendance_date, attendee_source, attendee_source_id, attendee_name, phone, phone_normalized, phone_last10,
+        salem_family, date_of_birth, email, department, church_position, status, marked_by, source, identity_key, device_id, ip, geo_verified) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Present', 'QR Self Check-in', 'qr', ?, ?, ?, ?)`,
+      [id, programme.id, programme.name, programme.programme_type, today, person.source, person.id, person.name, person.phone, normalizePhone(person.phone), last10, person.salem_family || null,
         person.date_of_birth || null, person.email || null, person.department || null, person.church_position || 'Member', key, device, String(req.ip || '').slice(0, 64), geoVerified]);
-    if (programme.programme_type === '32_days' && dayNumber) {
-      const [found] = await conn.execute('SELECT id FROM greatness_attendees WHERE phone_last10 = ? LIMIT 1 FOR UPDATE', [last10]);
-      let attendeeId = found[0]?.id;
-      if (!attendeeId) {
-        attendeeId = crypto.randomUUID();
-        await conn.execute('INSERT INTO greatness_attendees (id, name, phone, phone_normalized, phone_last10, email, department) VALUES (?, ?, ?, ?, ?, ?, ?)', [attendeeId, person.name, person.phone, normalizePhone(person.phone), last10, person.email || null, person.department || null]);
-      }
-      await conn.execute("INSERT IGNORE INTO greatness_attendance (id, attendee_id, day_number, status, marked_by) VALUES (?, ?, ?, 'Present', 'QR Self Check-in')", [crypto.randomUUID(), attendeeId, dayNumber]);
-    }
     return id;
   });
   await audit(req, { action: 'checkin.self', entity_type: 'programme_record', entity_id: record, detail: `${person.name} · ${programme.name} · ${today}${geoVerified ? ' · location verified' : ''}`, actor: { id: null, name: `${person.name} (self check-in)`, role: 'public' } });

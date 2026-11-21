@@ -19,7 +19,7 @@ const AdminDashboard = lazy(() => import('./components/admin/AdminDashboard'));
 const PastorDashboard = lazy(() => import('./components/pastor/PastorDashboard'));
 const DeptDashboard = lazy(() => import('./components/department/DeptDashboard'));
 const KDFDashboard = lazy(() => import('./components/kdf/KDFDashboard'));
-const PublicAttendanceCheckIn = lazy(() => import('./components/pastor/LeadershipTraining').then(m => ({ default: m.PublicAttendanceCheckIn })));
+const PublicAttendanceCheckIn = lazy(() => import('./components/pastor/ProgrammeAttendance').then(m => ({ default: m.PublicAttendanceCheckIn })));
 const SecurityCenter = lazy(() => import('./components/security/SecurityCenter'));
 const Approvals = lazy(() => import('./components/governance/Approvals'));
 const AuditCenter = lazy(() => import('./components/governance/AuditCenter'));

@@ -41,7 +41,10 @@ export default function Approvals() {
         <code style={{ background: C.successBg, color: C.success, padding: '4px 10px', borderRadius: 8 }}>{show(r.proposed)}</code>
       </div>
       <p style={{ fontSize: 13, color: C.textSecondary }}><strong>Reason:</strong> {r.reason}</p>
-      {r.status !== 'pending' && <p style={{ fontSize: 12, color: C.textMuted }}>{r.status === 'approved' ? 'Approved' : 'Rejected'} by {r.decided_by_name} · {r.decided_at && when(r.decided_at)}{r.decision_note ? ` — ${r.decision_note}` : ''}</p>}
+      {r.status !== 'pending' && <p style={{ fontSize: 12, color: C.textMuted }}>
+        {r.status === 'cancelled' ? 'Cancelled' : `${r.status === 'approved' ? 'Approved' : 'Rejected'} by ${r.decided_by_name}`}
+        {r.decided_at && ` · ${when(r.decided_at)}`}{r.decision_note ? ` — ${r.decision_note}` : ''}
+      </p>}
       {r.status === 'pending' && canDecide && (r.requested_by === profile.id
         ? <p style={{ fontSize: 12, color: C.textMuted }}>You requested this, so another leader must decide it.</p>
         : <div style={{ display: 'flex', gap: 8 }}><Btn color={C.success} size="sm" onClick={() => setDialog({ kind: 'approve', row: r })}><Check size={14} aria-hidden /> Approve</Btn><Btn color={C.danger} size="sm" variant="outline" onClick={() => setDialog({ kind: 'reject', row: r })}><X size={14} aria-hidden /> Reject</Btn></div>)}

@@ -47,7 +47,7 @@ For an empty database:
 4. *User Accounts* → create the real Bishop/Administrator and staff accounts. Each person gets a temporary password and must choose their own at first sign-in.
 
 ## 6. Schedule backups and monitoring
-See `docs/OPERATIONS.md` for the daily backup command and restore check. After deployment, open `https://YOUR-DOMAIN/api/health` and check that it returns HTTP 200. Sign in on a phone as a test Pastor, register a test member, and confirm a submitted follow-up remains visible after reload. Configure and test any messaging or push integrations you intend to use.
+See `docs/OPERATIONS.md` for the daily backup command and restore check. After deployment, run the read-only smoke check in that guide or open `https://YOUR-DOMAIN/api/health` and confirm it returns HTTP 200. Use a staging deployment with a disposable database to verify workflows that create accounts, members, or follow-ups.
 
 ## Local development
 

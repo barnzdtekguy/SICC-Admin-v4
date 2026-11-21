@@ -20,7 +20,7 @@ Generated from `server/permissions.js`, the single source of truth. Every API ro
 | `corrections.decide` | Approve / reject corrections (never your own) | ✔ | ✔ |  |  |  |
 | `programmes.manage` | Create programmes, set venue lock | ✔ | ✔ | ✔ |  |  |
 | `checkin.control` | Show the rotating check-in QR | ✔ | ✔ | ✔ |  |  |
-| `training.mark` | Mark Leadership Training / programme attendance | ✔ | ✔ | ✔ |  |  |
+| `training.mark` | Record and view programme attendance | ✔ | ✔ | ✔ |  |  |
 | `messages.send` | Send SMS / WhatsApp to members | ✔ | ✔ |  |  |  |
 | `sms.config` | Change SMS provider settings | ✔ | ✔ |  |  |  |
 | `assignments.manage` | Create / manage assignments | ✔ | ✔ |  |  |  |

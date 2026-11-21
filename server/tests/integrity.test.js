@@ -1,10 +1,13 @@
 'use strict';
 const { test, after } = require('node:test');
 const assert = require('node:assert/strict');
+const { randomUUID } = require('node:crypto');
 const h = require('./helpers');
 const { query } = require('../db');
 const { verifyChain, audit } = require('../lib/audit');
 const { checkinToken } = require('../lib/crypto');
+const { migrations } = require('../migrate');
+const { RETIRED_PROGRAMME_ID, RETIRED_PROGRAMME_TYPE } = require('../lib/programmes');
 
 after(() => h.close());
 const today = () => new Date().toISOString().slice(0, 10);
@@ -94,14 +97,46 @@ test('attendance verification cannot be done by the person who recorded it', asy
   assert.equal(v.status, 200); assert.equal(v.body.data.status, 'verified'); assert.equal(v.body.data.locked, true);
 });
 
-test('training attendance: marked_by is taken from the session, never the request', async () => {
+test('programme attendance: marked_by is taken from the session, never the request', async () => {
   const pastor = await h.loginAgent(await h.makeUser('pastor', { name: 'Pst Real Name' }));
-  const att = await h.api(pastor, 'post', '/greatness/attendees', { name: `Trainee ${h.uniq()}`, phone: '08011112222' });
-  const mark = await h.api(pastor, 'post', '/greatness/attendance', { attendee_id: att.body.data.id, day_number: 3, status: 'Present', marked_by: 'The Bishop' });
-  assert.equal(mark.status, 200); assert.equal(mark.body.data.marked_by, 'Pst Real Name');
-  assert.equal((await h.api(pastor, 'post', '/greatness/attendance', { attendee_id: att.body.data.id, day_number: 99, status: 'Present' })).status, 400);
-  assert.equal((await h.api(pastor, 'post', '/greatness/attendance', { attendee_id: att.body.data.id, day_number: 3, status: 'Hacked' })).status, 400);
-  assert.equal((await h.api(pastor, 'post', '/greatness/attendance', { attendee_id: 'nope', day_number: 3, status: 'Present' })).status, 404);
+  const record = { programme_id: 'sunday-service', attendance_date: today(), attendee_name: `Trainee ${h.uniq()}`, status: 'Present', marked_by: 'The Bishop' };
+  const mark = await h.api(pastor, 'post', '/programme-attendance-records', record);
+  assert.equal(mark.status, 201);
+  assert.equal(mark.body.data.marked_by, 'Pst Real Name');
+  assert.equal((await h.api(pastor, 'post', '/programme-attendance-records', { ...record, status: 'Hacked' })).status, 400);
+  assert.equal((await h.api(pastor, 'post', '/programme-attendance-records', { ...record, programme_id: 'nope' })).status, 404);
+});
+
+test('the upgrade retires 32-day programmes and preserves their attendance history', async () => {
+  const app = await h.setup();
+  const pastor = await h.loginAgent(await h.makeUser('pastor'));
+  const programmeId = `retired-${h.uniq()}`;
+  const recordId = randomUUID();
+  const correctionId = randomUUID();
+  await query('INSERT INTO attendance_programmes (id, name, programme_type) VALUES (?, ?, ?)', [programmeId, 'Old Training', RETIRED_PROGRAMME_TYPE]);
+  await query('INSERT INTO programme_attendance_records (id, programme_id, programme_name, programme_type, attendance_date, attendee_name) VALUES (?, ?, ?, ?, ?, ?)',
+    [recordId, programmeId, 'Old Training', RETIRED_PROGRAMME_TYPE, today(), 'Former Attendee']);
+  await query("INSERT INTO correction_requests (id, entity_type, entity_id, proposed_json, reason) VALUES (?, 'programme_record', ?, '{}', 'Historical correction')", [correctionId, recordId]);
+  const retirement = migrations.find(m => m.id === '010_retire_32_day_programme');
+  await retirement.up();
+  await retirement.up();
+
+  assert.equal((await query('SELECT is_active FROM attendance_programmes WHERE id = ?', [programmeId]))[0].is_active, 0);
+  assert.equal((await query('SELECT attendee_name FROM programme_attendance_records WHERE id = ?', [recordId]))[0].attendee_name, 'Former Attendee');
+  assert.equal((await query('SELECT status FROM correction_requests WHERE id = ?', [correctionId]))[0].status, 'cancelled');
+
+  const programmes = (await h.request(app).get('/api/programmes?public=1')).body.data;
+  assert.ok(programmes.some(p => p.id === 'sunday-service'));
+  assert.ok(programmes.every(p => p.id !== RETIRED_PROGRAMME_ID && p.programme_type !== RETIRED_PROGRAMME_TYPE));
+  assert.equal((await h.api(pastor, 'get', '/greatness/attendance')).status, 404);
+  assert.equal((await h.api(pastor, 'get', `/checkin/session?programme_id=${programmeId}`)).status, 410);
+  assert.equal((await h.api(pastor, 'patch', `/programmes/${programmeId}`, { is_active: true })).status, 410);
+  assert.equal((await h.api(pastor, 'post', '/programmes', { id: RETIRED_PROGRAMME_ID, name: 'Old Training' })).status, 400);
+  assert.deepEqual((await h.api(pastor, 'get', `/programme-attendance-records?programmeId=${programmeId}`)).body.data, []);
+  assert.equal((await h.api(pastor, 'post', '/corrections', { entity_type: 'programme_record', entity_id: recordId, proposed: { status: 'Absent' }, reason: 'Historical correction' })).status, 410);
+  assert.equal((await h.request(app).post('/api/public/attendance/check-in').set('X-SICC-Client', 'web').send({
+    programme_id: programmeId, attendance_date: today(), attendee_name: 'Former Attendee', phone: '08011112222', date_of_birth: '1990-05-17',
+  })).status, 410);
 });
 
 test('QR check-in: rotating token, per-phone lockout, device cap, geofence and no double check-in', async () => {

@@ -3,11 +3,12 @@
 // phpMyAdmin import is needed any more. Each migration runs once and is recorded.
 const fs = require('fs');
 const path = require('path');
-const { pool, query, rawQuery } = require('./db');
+const { pool, query, rawQuery, transaction } = require('./db');
 const { config } = require('./config');
 const { encrypt, isEncrypted } = require('./lib/crypto');
 const { phoneLast10 } = require('./http');
 const lists = require('./data/lists.json');
+const { RETIRED_PROGRAMME_ID, RETIRED_PROGRAMME_TYPE } = require('./lib/programmes');
 
 const log = (...args) => { if (!config.isTest) console.info('[migrate]', ...args); };
 
@@ -124,8 +125,6 @@ const migrations = [
       await addColumn('attendance', 'verified_at', 'TIMESTAMP NULL');
       await addColumn('attendance', 'updated_at', 'TIMESTAMP NULL');
       await addColumn('attendance', 'updated_by_name', 'VARCHAR(160) NULL');
-      await addColumn('greatness_attendees', 'phone_last10', 'CHAR(10) NULL');
-      await addColumn('greatness_attendance', 'marked_by_id', 'CHAR(36) NULL');
       for (const [col, ddl] of Object.entries({
         identity_key: "VARCHAR(255) NOT NULL DEFAULT ''", source: "VARCHAR(20) NOT NULL DEFAULT 'manual'", device_id: 'VARCHAR(64) NULL',
         ip: 'VARCHAR(64) NULL', geo_verified: 'TINYINT(1) NOT NULL DEFAULT 0', phone_last10: 'CHAR(10) NULL', updated_by_name: 'VARCHAR(160) NULL',
@@ -137,14 +136,12 @@ const migrations = [
       await rawQuery("UPDATE attendance SET dept_key = COALESCE(dept_name, '') WHERE dept_key = ''");
       await rawQuery("UPDATE programme_attendance_records SET identity_key = COALESCE(NULLIF(phone_normalized, ''), CONCAT('n:', LOWER(TRIM(attendee_name)))) WHERE identity_key = ''");
       await backfillPhoneLast10('members', 'phone');
-      await backfillPhoneLast10('greatness_attendees', 'phone');
       await backfillPhoneLast10('programme_attendance_records', 'phone');
 
       await ensureUniqueIndexes();
       await addIndex('members', 'members_phone_last10_idx', 'phone_last10');
       await addIndex('members', 'members_created_idx', 'created_at');
       await addIndex('members', 'members_deleted_idx', 'deleted_at');
-      await addIndex('greatness_attendees', 'greatness_phone_last10_idx', 'phone_last10');
       await addIndex('programme_attendance_records', 'programme_records_last10_idx', 'phone_last10');
       await addIndex('programme_attendance_records', 'programme_records_device_idx', 'programme_id, attendance_date, device_id');
       await addIndex('follow_ups', 'follow_ups_status_idx', 'status, created_at');
@@ -266,6 +263,17 @@ const migrations = [
         await query('UPDATE sms_config SET api_key = ? WHERE id = 1', [encrypt(rows[0].api_key)]);
       }
     },
+  },
+  {
+    id: '010_retire_32_day_programme',
+    up: async () => transaction(async conn => {
+      const retired = [RETIRED_PROGRAMME_ID, RETIRED_PROGRAMME_TYPE];
+      await conn.execute('UPDATE attendance_programmes SET is_active = 0 WHERE id = ? OR programme_type = ?', retired);
+      await conn.execute(`UPDATE correction_requests AS c
+        LEFT JOIN programme_attendance_records AS r ON c.entity_type = 'programme_record' AND c.entity_id = r.id
+        SET c.status = 'cancelled', c.decided_at = CURRENT_TIMESTAMP, c.decision_note = 'The 32-day programme was retired.'
+        WHERE c.status = 'pending' AND (c.entity_type = 'greatness_attendance' OR r.programme_id = ? OR r.programme_type = ?)`, retired);
+    }),
   },
 ];
 
