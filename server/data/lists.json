@@ -1,0 +1,385 @@
+{
+  "departments": [
+    {
+      "name": "Missions",
+      "color": "#185FA5",
+      "sort_order": 1
+    },
+    {
+      "name": "Prayer",
+      "color": "#AD1457",
+      "sort_order": 2
+    },
+    {
+      "name": "KDF",
+      "color": "#6A1B9A",
+      "sort_order": 3
+    },
+    {
+      "name": "Training",
+      "color": "#2E7D32",
+      "sort_order": 4
+    },
+    {
+      "name": "Assimilation / Covenant Friends",
+      "color": "#E65100",
+      "sort_order": 5
+    },
+    {
+      "name": "Transport",
+      "color": "#00838F",
+      "sort_order": 6
+    },
+    {
+      "name": "Wealth Creation / Cooperative",
+      "color": "#F9A825",
+      "sort_order": 7
+    },
+    {
+      "name": "Faith Dynamite Voice",
+      "color": "#C9A84C",
+      "sort_order": 8
+    },
+    {
+      "name": "Decoration",
+      "color": "#4527A0",
+      "sort_order": 9
+    },
+    {
+      "name": "Media",
+      "color": "#00695C",
+      "sort_order": 10
+    },
+    {
+      "name": "Facility Management / Projects",
+      "color": "#558B2F",
+      "sort_order": 11
+    },
+    {
+      "name": "Security",
+      "color": "#880E4F",
+      "sort_order": 12
+    },
+    {
+      "name": "Welfare",
+      "color": "#1565C0",
+      "sort_order": 13
+    },
+    {
+      "name": "Finance",
+      "color": "#A07828",
+      "sort_order": 14
+    },
+    {
+      "name": "Medical",
+      "color": "#185FA5",
+      "sort_order": 15
+    },
+    {
+      "name": "Education / Scholarship",
+      "color": "#AD1457",
+      "sort_order": 16
+    },
+    {
+      "name": "Baptism Ministry",
+      "color": "#6A1B9A",
+      "sort_order": 17
+    },
+    {
+      "name": "Legal Council",
+      "color": "#2E7D32",
+      "sort_order": 18
+    },
+    {
+      "name": "Bookshop / Reading Culture",
+      "color": "#E65100",
+      "sort_order": 19
+    },
+    {
+      "name": "Healing & Deliverance Crack Team",
+      "color": "#00838F",
+      "sort_order": 20
+    },
+    {
+      "name": "Counselling / Call Centre",
+      "color": "#F9A825",
+      "sort_order": 21
+    },
+    {
+      "name": "Marriage / Couples",
+      "color": "#C9A84C",
+      "sort_order": 22
+    },
+    {
+      "name": "Singles Connect",
+      "color": "#4527A0",
+      "sort_order": 23
+    },
+    {
+      "name": "Ushering",
+      "color": "#00695C",
+      "sort_order": 24
+    },
+    {
+      "name": "Visitation",
+      "color": "#558B2F",
+      "sort_order": 25
+    },
+    {
+      "name": "Publicity / Branding",
+      "color": "#880E4F",
+      "sort_order": 26
+    },
+    {
+      "name": "Salem Elders Ministry",
+      "color": "#1565C0",
+      "sort_order": 27
+    },
+    {
+      "name": "Communion",
+      "color": "#A07828",
+      "sort_order": 28
+    },
+    {
+      "name": "Sanctuary Keepers",
+      "color": "#185FA5",
+      "sort_order": 29
+    },
+    {
+      "name": "Affinity Leadership",
+      "color": "#AD1457",
+      "sort_order": 30
+    },
+    {
+      "name": "Announcement",
+      "color": "#6A1B9A",
+      "sort_order": 31
+    },
+    {
+      "name": "Salem Theatre",
+      "color": "#2E7D32",
+      "sort_order": 32
+    },
+    {
+      "name": "Dedication",
+      "color": "#E65100",
+      "sort_order": 33
+    },
+    {
+      "name": "Protocol",
+      "color": "#00838F",
+      "sort_order": 34
+    },
+    {
+      "name": "Conflict Resolution Team",
+      "color": "#F9A825",
+      "sort_order": 35
+    }
+  ],
+  "kdfAreas": [
+    {
+      "name": "Obalende / Ikoyi / Lekki 1",
+      "sort_order": 1
+    },
+    {
+      "name": "Oniru",
+      "sort_order": 2
+    },
+    {
+      "name": "Ikate / Elegushi / Chisco / Salem Alia / Safe Court",
+      "sort_order": 3
+    },
+    {
+      "name": "Itedo",
+      "sort_order": 4
+    },
+    {
+      "name": "Nicon Town / Victory Park / Osapa",
+      "sort_order": 5
+    },
+    {
+      "name": "Ilasan",
+      "sort_order": 6
+    },
+    {
+      "name": "Jakande 1st & 2nd Gate",
+      "sort_order": 7
+    },
+    {
+      "name": "Igbara",
+      "sort_order": 8
+    },
+    {
+      "name": "Aro Town / Mayeigun / Ologolo / Femi Okunnu",
+      "sort_order": 9
+    },
+    {
+      "name": "Igbon Efon 1",
+      "sort_order": 10
+    },
+    {
+      "name": "Igbon Efon 2",
+      "sort_order": 11
+    },
+    {
+      "name": "Agungi",
+      "sort_order": 12
+    },
+    {
+      "name": "Ajiran",
+      "sort_order": 13
+    },
+    {
+      "name": "Chevy View / Chevron",
+      "sort_order": 14
+    },
+    {
+      "name": "New Road 1",
+      "sort_order": 15
+    },
+    {
+      "name": "New Road 2",
+      "sort_order": 16
+    },
+    {
+      "name": "Orchid / Eleganza / Oral Estate",
+      "sort_order": 17
+    },
+    {
+      "name": "Victoria Garden City (VGC)",
+      "sort_order": 18
+    },
+    {
+      "name": "Ikota 1 & 2",
+      "sort_order": 19
+    },
+    {
+      "name": "Thomas Estate",
+      "sort_order": 20
+    },
+    {
+      "name": "Mobil Road / Alaguntan / Ajah",
+      "sort_order": 21
+    },
+    {
+      "name": "Badore 1",
+      "sort_order": 22
+    },
+    {
+      "name": "Badore 2",
+      "sort_order": 23
+    },
+    {
+      "name": "Ado / Langbasa",
+      "sort_order": 24
+    },
+    {
+      "name": "Abraham Adesanya / Ogombo",
+      "sort_order": 25
+    },
+    {
+      "name": "Okun Ajah",
+      "sort_order": 26
+    },
+    {
+      "name": "Olukola / Jesutedo 1",
+      "sort_order": 27
+    },
+    {
+      "name": "Jesutedo 2",
+      "sort_order": 28
+    },
+    {
+      "name": "Jesutedo 3",
+      "sort_order": 29
+    },
+    {
+      "name": "Crown Estate 1",
+      "sort_order": 30
+    },
+    {
+      "name": "Abijo",
+      "sort_order": 31
+    },
+    {
+      "name": "Lakowe 1",
+      "sort_order": 32
+    },
+    {
+      "name": "Lakowe 2 (School Gate)",
+      "sort_order": 33
+    },
+    {
+      "name": "Ahoyaya",
+      "sort_order": 34
+    },
+    {
+      "name": "Ibeju Lekki",
+      "sort_order": 35
+    },
+    {
+      "name": "Onosa",
+      "sort_order": 36
+    },
+    {
+      "name": "Eleko",
+      "sort_order": 37
+    },
+    {
+      "name": "Eputu / Ogunfayo 1",
+      "sort_order": 38
+    },
+    {
+      "name": "Eputu / Ogunfayo 2",
+      "sort_order": 39
+    },
+    {
+      "name": "Ikorodu",
+      "sort_order": 40
+    },
+    {
+      "name": "Gbagada / Bariga",
+      "sort_order": 41
+    }
+  ],
+  "affinityGroups": [
+    "Teenagers",
+    "Youth",
+    "Men",
+    "Women",
+    "Others"
+  ],
+  "memberStatuses": [
+    "New Convert",
+    "Active Member",
+    "Worker",
+    "Evangelism Contact"
+  ],
+  "spiritualStatuses": [
+    "Salvation",
+    "Water Baptized",
+    "Holy Spirit Baptized",
+    "In Discipleship",
+    "Matured Believer"
+  ],
+  "serviceTypes": [
+    "Sunday Service",
+    "Mid-Week Service",
+    "Prayer Night",
+    "Special Programme",
+    "Conference",
+    "Department Meeting"
+  ],
+  "followupMethods": [
+    "Visit",
+    "Phone Call",
+    "WhatsApp",
+    "Church Meeting",
+    "Other"
+  ],
+  "followupStatuses": [
+    "In Progress",
+    "Completed",
+    "No Response"
+  ]
+}
