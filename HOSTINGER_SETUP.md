@@ -17,7 +17,7 @@ hPanel → **Websites → Add website → Node.js Apps** → upload the deployme
 | Node version | Node.js 24 (24.15.0 or newer) |
 
 ## 3. Environment variables
-Set these values in the app's **Environment variables** screen. The `.env.example` file uses local development defaults. Set `APP_ORIGIN` to the exact HTTPS address users will open, including a separate entry for each supported hostname when applicable. Let Hostinger assign the port.
+Set these values in the app's **Environment variables** screen. Set `APP_ORIGIN` to the exact HTTPS address users will open, including a separate entry for each supported hostname when applicable. Let Hostinger assign the port.
 
 | Variable | Value |
 |---|---|
@@ -50,8 +50,10 @@ For an empty database:
 See `docs/OPERATIONS.md` for the daily backup command and restore check. After deployment, open `https://YOUR-DOMAIN/api/health` and check that it returns HTTP 200. Sign in on a phone as a test Pastor, register a test member, and confirm a submitted follow-up remains visible after reload. Configure and test any messaging or push integrations you intend to use.
 
 ## Local development
+
+Create a local `.env` using the [development setup in the README](README.md#quick-start-development).
+
 ```bash
-cp .env.example .env     # local defaults. Fill the DB_* values and secrets.
 npm ci --include=dev
 npm run dev:api          # API on :3001 (creates tables automatically)
 npm run dev              # website on :3000 (proxies /api)

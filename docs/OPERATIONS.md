@@ -31,7 +31,7 @@ The tool requires an empty database and refuses to restore over the configured l
 Logs are JSON, one line per request, with a `request_id`. When a user reports "an unexpected error", they can quote the request id shown with the error; search the log for it. Cookies and passwords are never logged.
 
 ## Tuning (environment variables)
-See `.env.example`. Common ones: `ATTENDANCE_LOCK_HOURS` (default 48), `CHECKIN_ROTATE_SECONDS` (60), `CHECKIN_MAX_PER_DEVICE` (2: a husband checking in his wife is fine, ten people on one phone is not), `SESSION_IDLE_MINUTES` (120).
+Optional settings include `ATTENDANCE_LOCK_HOURS` (default 48), `CHECKIN_ROTATE_SECONDS` (60), `CHECKIN_MAX_PER_DEVICE` (2: a husband checking in his wife is fine, ten people on one phone is not), `SESSION_IDLE_MINUTES` (120).
 
 ## Verifying a fresh install
 After first deploy, on an **empty** database you can run the end-to-end smoke test (it creates data, so never run it on live data):

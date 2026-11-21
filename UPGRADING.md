@@ -7,7 +7,7 @@
 
 ## Deploy
 1. Replace the project files with v4 (your Hostinger environment variables stay).
-2. Add the new variables from `.env.example` (`DATA_ENCRYPTION_KEY`, `APP_ORIGIN`, `BACKUP_PASSPHRASE` at minimum). Re-run the install and build commands, then restart.
+2. Set `DATA_ENCRYPTION_KEY`, `APP_ORIGIN`, and `BACKUP_PASSPHRASE` using the [environment settings in the Hostinger guide](HOSTINGER_SETUP.md#3-environment-variables). Re-run the install and build commands, then restart.
 3. On start the app upgrades your existing database automatically (nine migrations, safe to re-run) and keeps all your data. Check the app log for completed migrations and startup errors.
 
 ## What happens to existing data and users

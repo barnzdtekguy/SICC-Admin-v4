@@ -14,14 +14,15 @@ Church administration portal for Salem International Christian Centre: members, 
 | Understand the security model | [SECURITY.md](SECURITY.md) |
 
 ## Quick start (development)
-Use Node.js 24.15.0 or newer on the Node 24 line. On PowerShell, use `Copy-Item .env.example .env`.
+Use Node.js 24.15.0 or newer on the Node 24 line. Create a local `.env` with `DB_HOST`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`, and `JWT_SECRET`. Set `DB_PORT` if your database uses a port other than 3306. Generate a secret with `node -e "console.log(require('node:crypto').randomBytes(64).toString('hex'))"`. For an empty database, see [first sign-in](HOSTINGER_SETUP.md#5-first-sign-in) for the initial account settings.
+
 ```bash
-cp .env.example .env          # fill DB_* and generate JWT_SECRET (see file)
 npm ci --include=dev
 npm run dev:api               # API :3001, creates/upgrades tables automatically
 npm run dev                   # site :3000
 ```
-Tests need a **disposable** database whose name ends in `_test`: `cp .env.test.example .env.test`, edit it, then
+Tests need a **disposable** database whose name ends in `_test`. Create a local `.env.test` with the test database settings, a separate `JWT_SECRET`, and `NODE_ENV=test`.
+
 ```bash
 npm test          # API + unit tests (security rules, audit chain, check-in, corrections…)
 npm run test:ui   # UI tests (routing, 2FA flow, forced setup, components)
