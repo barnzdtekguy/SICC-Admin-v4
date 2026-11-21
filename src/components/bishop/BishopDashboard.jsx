@@ -2,18 +2,141 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import { StatCard, Panel, Badge, DataTable, Btn, Modal, Textarea, Input, Select, ActivityFeed, Grid, SearchInput, C, Alert, Avatar, InfoRow, StatusBadge, SectionTitle, FilterSelect, EmptyState } from '../shared/UI';
-import { getMembers, getProfiles, getFollowUps, getAttendance, getLogs, getAssignments, createAssignment, updateAssignment, deleteAssignment, getMessageStatus, sendSms } from '../../lib/db';
+import { getMembers, getProfiles, getFollowUps, getAttendance, getLogs, getAssignments, createAssignment, updateAssignment, deleteAssignment, getMessageStatus, sendSms, getBrief } from '../../lib/db';
 import { DEPARTMENTS, KDF_AREAS, ROLES, ROLE_COLORS, ROLE_LABELS, getTodaysBirthdays } from '../../data/constants';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart, Bar, CartesianGrid } from 'recharts';
-import { Users, Star, UserCheck, MapPin, Building2, CheckSquare, TrendingUp, Phone, ClipboardList, BarChart2, Calendar, MessageSquare, Activity, Briefcase, Bell, Clock, Heart, Send, Gift } from 'lucide-react';
+import { Users, Star, UserCheck, MapPin, Building2, CheckSquare, TrendingUp, Phone, ClipboardList, BarChart2, Calendar, MessageSquare, Activity, Briefcase, Bell, Clock, Heart, Send, Gift, ArrowUpRight, ChevronRight, Inbox, QrCode } from 'lucide-react';
 
 import ProgrammeAttendance from '../pastor/ProgrammeAttendance';
 import { UserManagement } from '../admin/AdminDashboard';
 
-export default function BishopDashboard({ activeTab, setActiveTab }) {
+export default function BishopDashboard({ activeTab, setActiveTab, mobile }) {
+  if (mobile && activeTab === 'overview') return <MobileOverview setActiveTab={setActiveTab} />;
   const map = { overview: Overview, users: UserManagement, growth: Growth, staff: StaffMonitor, members: Members, kdf: KDFView, departments: DeptView, followups: FollowUps, programmes: ProgrammeAttendance, communication: Communication, reports: Reports, assignments: Assignments };
   const Comp = map[activeTab] || Overview;
   return <Comp setActiveTab={setActiveTab} />;
+}
+
+const quickActions = [
+  { label: 'Members', tab: 'members', Icon: Users },
+  { label: 'Attendance', tab: 'programmes', Icon: QrCode },
+  { label: 'Follow-ups', tab: 'followups', Icon: Phone },
+  { label: 'Messages', tab: 'communication', Icon: MessageSquare },
+];
+
+function BirthdayWish({ member }) {
+  const wish = `Happy Birthday, ${member.first_name}! The Lord bless and keep you. With best wishes from Bishop Enobong Etteh and the Salem International Christian Centre.`;
+  return <Btn size="sm" variant="ghost" color={C.gold} onClick={() => window.open(`https://wa.me/234${member.phone?.replace(/^0/, '')}?text=${encodeURIComponent(wish)}`, '_blank')}>
+    <Gift size={13} /> Send Wishes
+  </Btn>;
+}
+
+function MobileBirthdays({ count, onClose }) {
+  const [members, setMembers] = useState(count === 0 ? [] : null);
+  const [failed, setFailed] = useState(false);
+  useEffect(() => {
+    if (count === 0) return undefined;
+    let current = true;
+    getMembers().then(data => { if (current) setMembers(getTodaysBirthdays(data)); })
+      .catch(() => { if (current) setFailed(true); });
+    return () => { current = false; };
+  }, [count]);
+
+  return (
+    <Modal title="Birthdays today" onClose={onClose}>
+      {failed && <p role="alert">Birthdays could not be loaded. Close and reopen this list to try again.</p>}
+      {!failed && !members && <p role="status">Loading birthdays…</p>}
+      {members?.length === 0 && <p>No birthdays today.</p>}
+      {members?.map(member => (
+        <div className="bishop-birthday-row" key={member.id}>
+          <strong>{member.first_name} {member.last_name}</strong>
+          {member.phone && <BirthdayWish member={member} />}
+        </div>
+      ))}
+    </Modal>
+  );
+}
+
+function MobileOverview({ setActiveTab }) {
+  const [brief, setBrief] = useState(null);
+  const [failed, setFailed] = useState(false);
+  const [attempt, setAttempt] = useState(0);
+  const [birthdaysOpen, setBirthdaysOpen] = useState(false);
+  useEffect(() => {
+    let current = true;
+    getBrief().then(data => { if (current) setBrief(data); })
+      .catch(() => { if (current) setFailed(true); });
+    return () => { current = false; };
+  }, [attempt]);
+
+  const latest = brief?.attendanceTrend?.at(-1);
+  const reports = [
+    { label: 'Attendance reports', tab: 'reports', Icon: BarChart2 },
+    { label: 'Approvals', tab: 'approvals', Icon: Inbox, detail: brief ? `${brief.pendingApprovals} pending` : null },
+  ];
+  const cards = [
+    { label: 'Church growth', detail: brief ? `${brief.newMembers7d} new this week` : 'Membership trends', Icon: TrendingUp, tone: 'navy', open: () => setActiveTab('growth') },
+    { label: 'Staff monitor', detail: 'Pastors and leaders', Icon: UserCheck, tone: 'gold', open: () => setActiveTab('staff') },
+    { label: 'Birthdays today', detail: brief ? `${brief.birthdaysToday} to celebrate` : 'Member birthdays', Icon: Gift, tone: 'cream', open: () => setBirthdaysOpen(true) },
+  ];
+
+  return (
+    <div className="bishop-overview">
+      <section className="bishop-hero" aria-labelledby="bishop-attendance-title">
+        <div className="bishop-hero-data">
+          <h1 id="bishop-attendance-title">Latest service attendance</h1>
+          {latest && <strong className="bishop-hero-count">{Number(latest.count).toLocaleString('en-NG')}</strong>}
+          <p>{latest ? latest.service : failed ? 'Attendance unavailable' : brief ? 'No service recorded yet' : 'Loading attendance…'}</p>
+          {failed && <button className="bishop-hero-retry" type="button" onClick={() => { setFailed(false); setAttempt(n => n + 1); }}>Try again</button>}
+        </div>
+        <button className="bishop-hero-link" type="button" onClick={() => setActiveTab('reports')}>
+          History <ChevronRight size={17} aria-hidden="true" />
+        </button>
+      </section>
+
+      <section aria-labelledby="bishop-actions-title">
+        <h2 id="bishop-actions-title" className="bishop-section-title">Quick actions</h2>
+        <div className="bishop-quick-actions">
+          {quickActions.map(({ label, tab, Icon }) => (
+            <button key={tab} type="button" onClick={() => setActiveTab(tab)}>
+              <span className="bishop-action-icon"><Icon size={23} aria-hidden="true" /></span>
+              {label}
+            </button>
+          ))}
+        </div>
+      </section>
+
+      <section aria-labelledby="bishop-reports-title">
+        <h2 id="bishop-reports-title" className="bishop-section-title">Reports</h2>
+        <div className="bishop-report-rows">
+          {reports.map(({ label, tab, Icon, detail }) => (
+            <button key={tab} type="button" onClick={() => setActiveTab(tab)}>
+              <span className="bishop-row-icon"><Icon size={19} aria-hidden="true" /></span>
+              <span className="bishop-row-label">{label}</span>
+              {detail && <span className="bishop-row-detail">{detail}</span>}
+              <ChevronRight size={17} aria-hidden="true" />
+            </button>
+          ))}
+        </div>
+      </section>
+
+      <section aria-labelledby="bishop-ministry-title">
+        <h2 id="bishop-ministry-title" className="bishop-section-title">Ministry at a glance</h2>
+        <ul className="bishop-swipe-cards">
+          {cards.map(({ label, detail, Icon, tone, open }) => (
+            <li key={label}>
+              <button type="button" onClick={open}>
+                <span className="bishop-card-title">{label}<ArrowUpRight size={16} aria-hidden="true" /></span>
+                <span className="bishop-card-detail">{detail}</span>
+                <span className="bishop-card-icon" data-tone={tone}><Icon size={31} aria-hidden="true" /></span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      </section>
+      {birthdaysOpen && <MobileBirthdays count={brief?.birthdaysToday} onClose={() => setBirthdaysOpen(false)} />}
+    </div>
+  );
 }
 
 function Overview({ setActiveTab }) {
@@ -108,11 +231,7 @@ function Overview({ setActiveTab }) {
               { key: 'name', label: 'Member', render: (_, r) => <strong>{r.first_name} {r.last_name}</strong> },
               { key: 'phone', label: 'Phone' },
               { key: 'kdf_area', label: 'KDF Area', render: v => <Badge label={v} color={C.purple} /> },
-              { key: 'wish', label: '', render: (_, r) => (
-                <Btn size="sm" variant="ghost" color={C.gold} onClick={() => window.open(`https://wa.me/234${r.phone?.replace(/^0/, '')}?text=${encodeURIComponent(`Happy Birthday, ${r.first_name}! The Lord bless and keep you. With best wishes from Bishop Enobong Etteh and the Salem International Christian Centre.`)}`, '_blank')}>
-                  <Gift size={13} /> Send Wishes
-                </Btn>
-              )},
+              { key: 'wish', label: '', render: (_, r) => <BirthdayWish member={r} /> },
             ]}
             rows={todayBirthdays}
           />

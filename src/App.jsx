@@ -1,5 +1,5 @@
 // src/App.jsx
-import { lazy, Suspense, useEffect } from 'react';
+import { lazy, Suspense, useEffect, useSyncExternalStore } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useNavigate, useParams, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './hooks/useAuth';
 import { ThemeProvider } from './hooks/useTheme';
@@ -26,6 +26,13 @@ const AuditCenter = lazy(() => import('./components/governance/AuditCenter'));
 const Insights = lazy(() => import('./components/governance/Insights'));
 
 const EXTRA_SCREENS = { security: SecurityCenter, approvals: Approvals, audit: AuditCenter, insights: Insights };
+const PHONE_LAYOUT = '(max-width: 860px)';
+const matchesPhoneLayout = () => window.matchMedia?.(PHONE_LAYOUT)?.matches ?? false;
+function subscribeToPhoneLayout(onChange) {
+  const query = window.matchMedia?.(PHONE_LAYOUT);
+  query?.addEventListener('change', onChange);
+  return () => query?.removeEventListener('change', onChange);
+}
 
 function Splash() {
   return (
@@ -57,6 +64,7 @@ function Dashboard() {
   const { tab } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
+  const phoneLayout = useSyncExternalStore(subscribeToPhoneLayout, matchesPhoneLayout, () => false);
 
   if (!isAuthenticated) return <Navigate to="/login" replace state={{ from: location.pathname }} />;
   if (restrictions.length) return <SecurityGate />;
@@ -64,12 +72,13 @@ function Dashboard() {
   const nav = NAV[profile.role] || [];
   if (!tab || !nav.some(n => n.key === tab)) return <Navigate to="/app/overview" replace />;
   const setActiveTab = key => navigate(`/app/${key}`);
+  const bishopMobile = profile.role === ROLES.BISHOP && phoneLayout;
 
   const Extra = EXTRA_SCREENS[tab];
   const renderDashboard = () => {
     if (Extra) return <Extra setActiveTab={setActiveTab} />;
     switch (profile.role) {
-      case ROLES.BISHOP: return <BishopDashboard activeTab={tab} setActiveTab={setActiveTab} />;
+      case ROLES.BISHOP: return <BishopDashboard activeTab={tab} setActiveTab={setActiveTab} mobile={bishopMobile} />;
       case ROLES.ADMIN: return <AdminDashboard activeTab={tab} setActiveTab={setActiveTab} />;
       case ROLES.PASTOR: return <PastorDashboard activeTab={tab} />;
       case ROLES.DEPARTMENT_LEADER: return <DeptDashboard activeTab={tab} />;
@@ -79,10 +88,10 @@ function Dashboard() {
   };
 
   return (
-    <Layout activeTab={tab} setActiveTab={setActiveTab}>
+    <Layout activeTab={tab} setActiveTab={setActiveTab} bishopMobile={bishopMobile}>
       <ErrorBoundary inline key={tab}>
         <Suspense fallback={<PageSkeleton />}>
-          {tab === 'overview' && <MorningBrief setActiveTab={setActiveTab} />}
+          {tab === 'overview' && !bishopMobile && <MorningBrief setActiveTab={setActiveTab} />}
           {renderDashboard()}
         </Suspense>
       </ErrorBoundary>

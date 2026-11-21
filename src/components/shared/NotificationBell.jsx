@@ -3,7 +3,7 @@ import { Bell } from 'lucide-react';
 import { C } from '../../lib/theme';
 import { getNotifications, markNotificationsRead } from '../../lib/db';
 
-export default function NotificationBell({ onNavigate }) {
+export default function NotificationBell({ onNavigate, compact = false }) {
   const [data, setData] = useState({ items: [], unread: 0 });
   const [open, setOpen] = useState(false);
   const box = useRef(null);
@@ -19,10 +19,10 @@ export default function NotificationBell({ onNavigate }) {
   const toggle = async () => { const next = !open; setOpen(next); if (next && data.unread) { await markNotificationsRead(); setTimeout(load, 1500); } };
   const ago = v => { const s = (Date.now() - Date.parse(`${String(v).replace(' ', 'T')}Z`)) / 1000; return s < 3600 ? `${Math.max(1, Math.round(s / 60))}m` : s < 86400 ? `${Math.round(s / 3600)}h` : `${Math.round(s / 86400)}d`; };
   return (
-    <div ref={box} style={{ position: 'relative' }}>
+    <div ref={box} className={compact ? 'bishop-bell' : undefined} style={{ position: 'relative' }}>
       <button type="button" onClick={toggle} aria-label={`Notifications${data.unread ? `, ${data.unread} unread` : ''}`} aria-expanded={open} aria-haspopup="true"
         style={{ position: 'relative', width: 40, height: 40, borderRadius: 10, border: `1px solid ${C.border}`, background: C.cardBg, color: C.textSecondary, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <Bell size={17} aria-hidden />
+        <Bell size={compact ? 21 : 17} aria-hidden />
         {data.unread > 0 && <span aria-hidden style={{ position: 'absolute', top: -5, right: -5, minWidth: 18, height: 18, padding: '0 5px', borderRadius: 9, background: C.danger, color: '#fff', fontSize: 11, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{data.unread > 9 ? '9+' : data.unread}</span>}
       </button>
       {open && (

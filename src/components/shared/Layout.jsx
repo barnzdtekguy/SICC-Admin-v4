@@ -10,6 +10,8 @@ import { onInstallAvailable, promptInstall } from '../../lib/pwa';
 import NotificationBell from './NotificationBell';
 import CommandPalette from './CommandPalette';
 import MemberDrawer from './MemberDrawer';
+import BishopMobileNav from '../bishop/BishopMobileNav';
+import '../../styles/bishop-mobile.css';
 import {
   LayoutDashboard, TrendingUp, UserCog, ClipboardList, MapPin, Building2, Phone, Radio, BarChart2, Pin, Users, CheckSquare,
   Settings, PlusCircle, LogOut, ChevronLeft, ChevronRight, QrCode, Menu, X, ShieldCheck, ScrollText, Inbox, LineChart, Search, Sun, Moon, Download, WifiOff, RefreshCw, Home, BookOpen, MoreHorizontal,
@@ -52,7 +54,7 @@ export const NAV = {
   ],
 };
 
-export default function Layout({ activeTab, setActiveTab, children }) {
+export default function Layout({ activeTab, setActiveTab, bishopMobile, children }) {
   const { profile, logout } = useAuth();
   const { effective, setMode } = useTheme();
   const navigate = useNavigate();
@@ -159,7 +161,7 @@ export default function Layout({ activeTab, setActiveTab, children }) {
   const iconBtn = { width: 40, height: 40, borderRadius: 10, border: `1px solid ${C.border}`, background: C.cardBg, color: C.textSecondary, display: 'flex', alignItems: 'center', justifyContent: 'center' };
 
   return (
-    <div className={pastorMobile ? 'pastor-shell' : undefined} style={{ display: 'flex', height: '100vh', background: C.pageBg, color: C.textPrimary }}>
+    <div className={bishopMobile ? 'bishop-shell' : pastorMobile ? 'pastor-shell' : undefined} style={{ display: 'flex', height: '100vh', background: C.pageBg, color: C.textPrimary }}>
       <a href="#main" className="skip-link">Skip to content</a>
       <div className="app-desktop-sidebar" style={{ display: 'contents' }}>{renderSidebar(false)}</div>
       {mobileOpen && (
@@ -170,15 +172,21 @@ export default function Layout({ activeTab, setActiveTab, children }) {
       <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
         <header className="app-main-header" style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 20px', background: C.headerBg, borderBottom: `1px solid ${C.border}`, minHeight: 64 }}>
           {pastorMobile && <div className="pastor-mobile-brand" aria-label="SICC Admin"><img src="/salem-logo.png" alt=""/><span>SICC</span></div>}
+          {bishopMobile && <button type="button" className="bishop-brand" aria-label="SICC Admin home" onClick={() => go('overview')}>
+            <span className="bishop-brand-mark"><img src="/salem-logo.png" alt="" width="32" height="32" /></span>
+            <span className="bishop-brand-text">{activeTab === 'overview' ? 'SICC Admin' : pageName}
+              <small>{activeTab === 'overview' ? 'Bishop dashboard' : 'SICC Admin'}</small>
+            </span>
+          </button>}
           <button type="button" className="app-menu-btn" onClick={() => setMobileOpen(o => !o)} aria-label={mobileOpen ? 'Close menu' : 'Open menu'} aria-expanded={mobileOpen} style={iconBtn}>{mobileOpen ? <X size={18} aria-hidden /> : <Menu size={18} aria-hidden />}</button>
           <div className="app-page-title" style={{ flex: 1, minWidth: 0 }}><div className="display" style={{ fontSize: 26, lineHeight: 1.1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{pageName}</div></div>
           <button type="button" className="app-search-btn" onClick={() => setPaletteOpen(true)} aria-label="Search (Ctrl K)" style={{ ...iconBtn, width: 'auto', padding: '0 12px', gap: 8, color: C.textMuted, fontSize: 13 }}>
             <Search size={16} aria-hidden /><span className="app-search-label">Search</span><kbd className="app-search-label" style={{ fontSize: 11, border: `1px solid ${C.border}`, borderRadius: 6, padding: '1px 6px' }}>Ctrl K</kbd>
           </button>
           <button type="button" className="app-theme-btn" onClick={() => setMode(effective === 'dark' ? 'light' : 'dark')} aria-label={effective === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'} style={iconBtn}>{effective === 'dark' ? <Sun size={17} aria-hidden /> : <Moon size={17} aria-hidden />}</button>
-          <div className="pastor-notification"><NotificationBell onNavigate={link => navigate(link)} /></div>
+          <div className="pastor-notification"><NotificationBell onNavigate={link => navigate(link)} compact={bishopMobile} /></div>
           <div ref={menuRef} style={{ position: 'relative' }}>
-            <button type="button" onClick={() => setUserMenu(o => !o)} aria-haspopup="menu" aria-expanded={userMenu} aria-label="Account menu" style={{ display: 'flex', alignItems: 'center', gap: 10, border: 'none', background: 'transparent', padding: 2, color: C.textPrimary }}>
+            <button type="button" className="app-account-btn" onClick={() => setUserMenu(o => !o)} aria-haspopup="menu" aria-expanded={userMenu} aria-label="Account menu" style={{ display: 'flex', alignItems: 'center', gap: 10, border: 'none', background: 'transparent', padding: 2, color: C.textPrimary }}>
               <span aria-hidden style={{ width: 40, height: 40, borderRadius: 12, background: `${roleColor}22`, border: `1px solid ${roleColor}55`, color: roleColor === C.gold ? C.goldText : roleColor, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 14 }}>{initials}</span>
             </button>
             {userMenu && (
@@ -188,6 +196,7 @@ export default function Layout({ activeTab, setActiveTab, children }) {
                   <div style={{ fontSize: 12, color: C.textSecondary }}>{ROLE_LABELS[profile?.role]}{profile?.department ? ` · ${profile.department}` : profile?.kdf_area ? ` · ${profile.kdf_area}` : ''}</div>
                 </div>
                 {[{ label: 'Security & devices', icon: ShieldCheck, run: () => go('security') },
+                  ...(bishopMobile ? [{ label: `Switch to ${effective === 'dark' ? 'light' : 'dark'} theme`, icon: effective === 'dark' ? Sun : Moon, run: () => { setUserMenu(false); setMode(effective === 'dark' ? 'light' : 'dark'); } }] : []),
                   ...(canInstall ? [{ label: 'Install app on this device', icon: Download, run: () => { setUserMenu(false); promptInstall(); } }] : []),
                   { label: 'Sign out', icon: LogOut, run: () => logout(), danger: true }].map(m => (
                   <button key={m.label} role="menuitem" type="button" onClick={m.run} style={{ display: 'flex', width: '100%', alignItems: 'center', gap: 10, padding: '12px 16px', border: 'none', background: 'transparent', color: m.danger ? C.danger : C.textPrimary, fontSize: 14, textAlign: 'left' }}>
@@ -210,6 +219,7 @@ export default function Layout({ activeTab, setActiveTab, children }) {
         <main id="main" ref={mainRef} tabIndex={-1} className="app-main" style={{ flex: 1, overflowY: 'auto', padding: 'clamp(14px, 3vw, 28px)', outline: 'none' }}>
           <div className="app-main-content" style={{ maxWidth: 1320, margin: '0 auto' }}>{children}</div>
         </main>
+        {bishopMobile && <BishopMobileNav activeTab={activeTab} pages={nav} icons={ICON} onNavigate={go} onSearch={() => setPaletteOpen(true)} />}
         {pastorMobile && <>
           <nav className="pastor-bottom-nav no-print" aria-label="Pastor mobile navigation">
             <button type="button" className={activeTab === 'overview' ? 'is-active' : ''} onClick={() => go('overview')} aria-current={activeTab === 'overview' ? 'page' : undefined}><Home size={22} aria-hidden/><span>Home</span></button>

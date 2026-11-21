@@ -138,6 +138,37 @@ describe('programme check-in', () => {
   });
 });
 
+it('shows the Bishop mobile overview and routes its dock to real Bishop pages', async () => {
+  vi.spyOn(window, 'matchMedia').mockImplementation(media => ({
+    matches: media === '(max-width: 860px)', addEventListener() {}, removeEventListener() {},
+  }));
+  const calls = mockApi({
+    '/auth/me': session({ ...PASTOR, role: 'bishop', name: 'Bishop Obi', mfa_enabled: true }),
+    '/brief': { newMembers7d: 5, pendingApprovals: 2, birthdaysToday: 0, attendanceTrend: [{ service: 'Sunday Service', count: 246 }] },
+  });
+  goto('/app/overview');
+  render(<App />);
+
+  expect(await screen.findByRole('heading', { name: 'Latest service attendance' })).toBeInTheDocument();
+  expect(await screen.findByText('246')).toBeInTheDocument();
+  expect(within(screen.getByRole('region', { name: 'Quick actions' })).getAllByRole('button')).toHaveLength(4);
+  expect(calls.map(call => call.path)).not.toContain('/members');
+
+  const dock = within(screen.getByRole('navigation', { name: 'Bishop mobile navigation' }));
+  expect(dock.getByRole('button', { name: 'Home' })).toHaveAttribute('aria-current', 'page');
+  const more = dock.getByRole('button', { name: 'More' });
+  await userEvent.click(more);
+  const pages = within(screen.getByRole('dialog', { name: 'More pages' }));
+  expect(pages.getByRole('button', { name: 'User Accounts' })).toBeInTheDocument();
+  await userEvent.keyboard('{Escape}');
+  expect(more).toHaveFocus();
+
+  const attendance = dock.getByRole('button', { name: 'Programme attendance' });
+  await userEvent.click(attendance);
+  expect(window.location.pathname).toBe('/app/programmes');
+  expect(attendance).toHaveAttribute('aria-current', 'page');
+});
+
 it('keeps the Pastor follow-up draft after a rejected save and allows retry', async () => {
   let reject = true;
   mockApi({
