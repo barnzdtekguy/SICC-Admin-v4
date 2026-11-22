@@ -27,6 +27,18 @@ describe('DataTable', () => {
     expect(onRowClick).toHaveBeenCalledOnce();
   });
   it('shows an empty state', () => { render(<DataTable columns={columns} rows={[]} emptyText="Nothing here" />); expect(screen.getByText('Nothing here')).toBeInTheDocument(); });
+  it('shows six columns by default, keeps actions and reveals the remaining values', async () => {
+    const extra = Array.from({ length: 7 }, (_, i) => ({ key: `field-${i}`, label: `Field ${i}` }));
+    const manage = { key: 'actions', label: '', render: () => <button type="button">Manage</button> };
+    render(<DataTable columns={[...extra, manage]} rows={[{ id: 1, 'field-6': 'Last value' }]} />);
+    const table = within(screen.getByRole('table'));
+    expect(table.getAllByRole('columnheader')).toHaveLength(6);
+    expect(table.getByRole('button', { name: 'Manage' })).toBeInTheDocument();
+    expect(table.queryByText('Last value')).toBeNull();
+    await userEvent.click(screen.getByRole('button', { name: 'Show all columns' }));
+    expect(table.getAllByRole('columnheader')).toHaveLength(8);
+    expect(table.getByText('Last value')).toBeInTheDocument();
+  });
 });
 
 describe('Modal + ConfirmDialog accessibility', () => {

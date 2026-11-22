@@ -149,9 +149,9 @@ it('shows the Bishop mobile overview and routes its dock to real Bishop pages', 
   goto('/app/overview');
   render(<App />);
 
-  expect(await screen.findByRole('heading', { name: 'Latest service attendance' })).toBeInTheDocument();
-  expect(await screen.findByText('246')).toBeInTheDocument();
-  expect(within(screen.getByRole('region', { name: 'Quick actions' })).getAllByRole('button')).toHaveLength(4);
+  const hero = await screen.findByRole('region', { name: 'Latest service attendance' }, { timeout: 3000 });
+  expect(await within(hero).findByText('246')).toBeInTheDocument();
+  expect(within(screen.getByRole('region', { name: 'Quick actions' })).getAllByRole('link')).toHaveLength(4);
   expect(calls.map(call => call.path)).not.toContain('/members');
 
   const dock = within(screen.getByRole('navigation', { name: 'Bishop mobile navigation' }));
@@ -159,7 +159,7 @@ it('shows the Bishop mobile overview and routes its dock to real Bishop pages', 
   const more = dock.getByRole('button', { name: 'More' });
   await userEvent.click(more);
   const pages = within(screen.getByRole('dialog', { name: 'More pages' }));
-  expect(pages.getByRole('button', { name: 'User Accounts' })).toBeInTheDocument();
+  expect(pages.getByRole('button', { name: 'User accounts' })).toBeInTheDocument();
   await userEvent.keyboard('{Escape}');
   expect(more).toHaveFocus();
 

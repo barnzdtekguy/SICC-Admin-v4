@@ -9,8 +9,6 @@ import { ROLES } from './data/constants';
 import { C } from './lib/theme';
 import { PageSkeleton } from './components/shared/UI';
 import Layout, { NAV } from './components/shared/Layout';
-import MorningBrief from './components/shared/MorningBrief';
-
 const LandingPage = lazy(() => import('./components/LandingPage'));
 const LoginPage = lazy(() => import('./components/auth/LoginPage'));
 const SecurityGate = lazy(() => import('./components/security/SecurityGate'));
@@ -38,8 +36,8 @@ function Splash() {
   return (
     <div role="status" aria-label="Loading SICC Admin" style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: C.navy }}>
       <img src="/salem-logo.png" alt="" width="84" height="84" style={{ objectFit: 'contain', marginBottom: 22 }} />
-      <div className="display" style={{ fontSize: 26, color: '#fff', marginBottom: 16 }}>SICC Admin</div>
-      <div style={{ width: 180, height: 3, background: 'rgba(255,255,255,.15)', borderRadius: 2, overflow: 'hidden' }}><div style={{ height: '100%', width: '25%', background: C.gold, borderRadius: 2, animation: 'load 1.5s ease-in-out infinite' }} /></div>
+      <div className="display" style={{ fontSize: 26, color: 'var(--nav-ink)', marginBottom: 16 }}>SICC Admin</div>
+      <div style={{ width: 180, height: 3, background: 'var(--nav-line)', borderRadius: 2, overflow: 'hidden' }}><div style={{ height: '100%', width: '25%', background: C.gold, borderRadius: 2, animation: 'load 1.5s ease-in-out infinite' }} /></div>
     </div>
   );
 }
@@ -72,13 +70,11 @@ function Dashboard() {
   const nav = NAV[profile.role] || [];
   if (!tab || !nav.some(n => n.key === tab)) return <Navigate to="/app/overview" replace />;
   const setActiveTab = key => navigate(`/app/${key}`);
-  const bishopMobile = profile.role === ROLES.BISHOP && phoneLayout;
-
   const Extra = EXTRA_SCREENS[tab];
   const renderDashboard = () => {
     if (Extra) return <Extra setActiveTab={setActiveTab} />;
     switch (profile.role) {
-      case ROLES.BISHOP: return <BishopDashboard activeTab={tab} setActiveTab={setActiveTab} mobile={bishopMobile} />;
+      case ROLES.BISHOP: return <BishopDashboard activeTab={tab} setActiveTab={setActiveTab} />;
       case ROLES.ADMIN: return <AdminDashboard activeTab={tab} setActiveTab={setActiveTab} />;
       case ROLES.PASTOR: return <PastorDashboard activeTab={tab} />;
       case ROLES.DEPARTMENT_LEADER: return <DeptDashboard activeTab={tab} />;
@@ -88,10 +84,9 @@ function Dashboard() {
   };
 
   return (
-    <Layout activeTab={tab} setActiveTab={setActiveTab} bishopMobile={bishopMobile}>
+    <Layout activeTab={tab} setActiveTab={setActiveTab} mobile={phoneLayout}>
       <ErrorBoundary inline key={tab}>
         <Suspense fallback={<PageSkeleton />}>
-          {tab === 'overview' && !bishopMobile && <MorningBrief setActiveTab={setActiveTab} />}
           {renderDashboard()}
         </Suspense>
       </ErrorBoundary>

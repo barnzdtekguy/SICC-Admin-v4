@@ -8,10 +8,44 @@
   --page: #F3F4F6; --card: #FFFFFF; --text: #0D1B2A; --muted: #566B7A; --line: #E0E4E8; --hover: #F3F4F6;
   --shadow-1: 0 1px 2px rgba(12, 27, 58, .06), 0 1px 1px rgba(12, 27, 58, .04);
   --shadow-2: 0 8px 28px rgba(12, 27, 58, .12);
+  --dashboard-page: #F7F6F2;
+  --navy-strong: #0C1B3A; --navy-deep: #09162E; --navy-slate: #41536E;
+  --nav-ink: #EFF2F8; --nav-muted: #AAB8CC; --nav-hover: #172746; --nav-line: #263754;
+  --accent-ink: #614817; --accent-soft: #F2E8D1; --accent-chart: #9A7131;
+  --hero-number: #462F09; --hero-glow: rgba(201, 168, 76, .48);
+  --glass-fill: rgba(255, 255, 255, .62); --glass-solid: var(--card);
+  --glass-border: rgba(255, 255, 255, .55); --glass-muted: #27364A;
+  --glass-shadow: 0 8px 32px rgba(12, 27, 58, .10);
+  --glass-blur-small: 12px; --glass-blur: 18px; --glass-blur-large: 28px;
+  --glass-filter: blur(var(--glass-blur)) saturate(160%);
+  --floating-dim: rgba(7, 14, 28, .38);
+  --surface-shadow: 0 1px 2px rgba(12, 27, 58, .04), 0 8px 24px rgba(12, 27, 58, .035);
+  --surface-shadow-hover: 0 1px 2px rgba(12, 27, 58, .07), 0 8px 24px rgba(12, 27, 58, .075);
+  --ui-motion: 180ms ease-out;
+  --status-success: #245E28; --status-success-bg: #EAF3DE;
+  --status-warning: #8F3B04; --status-warning-bg: #FFF3E0;
+  --status-danger: #A12323; --status-danger-bg: #FFEBEE;
+  --field-bg: #F8F9FA;
 }
 :root[data-theme='dark'] {
   --page: #0B1220; --card: #131D2F; --text: #E8EDF4; --muted: #8E9FB4; --line: #243349; --hover: #182538; --focus: #6CB0F0; --gold: #D4B45A;
   --shadow-1: 0 1px 2px rgba(0, 0, 0, .4); --shadow-2: 0 8px 28px rgba(0, 0, 0, .5);
+  --dashboard-page: var(--page);
+  --accent-ink: #F2D68D; --accent-soft: #332D21; --accent-chart: var(--gold);
+  --hero-number: #F2D68D; --hero-glow: rgba(201, 168, 76, .24);
+  --glass-fill: rgba(19, 29, 47, .60); --glass-border: rgba(255, 255, 255, .08); --glass-muted: #C3D0E1;
+  --glass-shadow: 0 8px 32px rgba(0, 0, 0, .45);
+  --floating-dim: rgba(3, 8, 18, .56);
+  --surface-shadow: 0 1px 2px rgba(0, 0, 0, .18), 0 8px 24px rgba(0, 0, 0, .12);
+  --surface-shadow-hover: 0 1px 2px rgba(0, 0, 0, .26), 0 8px 24px rgba(0, 0, 0, .24);
+  --status-success: #8CDC91; --status-success-bg: #16301A;
+  --status-warning: #FFBA79; --status-warning-bg: #3A2A12;
+  --status-danger: #FFA2A2; --status-danger-bg: #3A1A1D;
+  --field-bg: #0F1828;
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  :root, :root[data-theme='dark'] { --glass-fill: var(--glass-solid); --glass-filter: none; }
 }
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -54,129 +88,29 @@ button:active:not(:disabled) { transform: translateY(1px); }
 button.sicc-stat-card:hover, .sicc-stat-card.is-clickable:hover { box-shadow: var(--shadow-2); }
 .sicc-table tbody tr:hover { background: var(--hover); }
 .sicc-table th { position: sticky; top: 0; }
-.sicc-table-wrap { border-radius: 10px; }
+
+
 
 input[type=number]::-webkit-inner-spin-button, input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; }
 
-/* Responsive collapse of inline-styled grids (kept from v3 so existing screens keep working on phones). */
-@media (max-width: 860px) {
-        body { overflow-x: hidden; }
-        button, input, select, textarea { max-width: 100%; }
-
-        .sicc-grid,
-        div[style*="grid-template-columns: 1fr 1fr"],
-        div[style*="grid-template-columns: 1fr 1fr 1fr"],
-        div[style*="grid-template-columns: repeat(auto-fill, minmax(300px"],
-        div[style*="grid-template-columns: repeat(auto-fill, minmax(270px"],
-        div[style*="grid-template-columns: repeat(auto-fill, minmax(250px"],
-        div[style*="grid-template-columns: repeat(auto-fit, minmax(280px"],
-        div[style*="grid-template-columns: repeat(auto-fit, minmax(260px"] {
-          grid-template-columns: minmax(0, 1fr) !important;
-          gap: 12px !important;
-        }
-
-        .sicc-panel {
-          padding: 14px !important;
-          border-radius: 10px !important;
-        }
-
-        .sicc-stat-card {
-          padding: 14px !important;
-          border-radius: 10px !important;
-        }
-
-        .sicc-table-wrap {
-          margin-inline: -2px;
-          padding-bottom: 4px;
-          -webkit-overflow-scrolling: touch;
-        }
-      }
-
-      @media (min-width: 641px) and (max-width: 860px) {
-        .sicc-grid {
-          grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-        }
-      }
+@media screen and (max-width: 860px) {
+  body { overflow-x: hidden; }
+  button, input, select, textarea { max-width: 100%; }
+  .sicc-grid, .landing-stack-grid { grid-template-columns: minmax(0, 1fr) !important; }
+  .sicc-grid { gap: 16px !important; }
+  .landing-stack-grid { gap: 12px !important; }
+  .app-shell :is(input, select, textarea) { font-size: 16px !important; }
+  .app-shell button { min-height: 44px; }
+}
+@media screen and (min-width: 641px) and (max-width: 860px) {
+  .sicc-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+}
 @media print {
-  .no-print, .app-sidebar, .app-main-header, .app-mobile-scrim, .toast-region { display: none !important; }
+  .no-print, .app-sidebar, .app-main-header, .toast-region { display: none !important; }
   body { background: #fff; color: #000; }
   .app-main, .app-main-content { overflow: visible !important; padding: 0 !important; }
   .sicc-panel { break-inside: avoid; border: 1px solid #ccc !important; }
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; scroll-behavior: auto !important; }
-}
-
-/* App shell responsiveness */
-.app-menu-btn { display: none; }
-@media (max-width: 860px) {
-  .app-desktop-sidebar > nav { display: none !important; }
-  .app-menu-btn { display: flex !important; }
-  .app-search-label { display: none !important; }
-}
-
-/* Pastor-only mobile experience. Desktop and every other role retain their original layouts. */
-.pastor-mobile-brand, .pastor-bottom-nav, .pastor-mobile-overview { display: none; }
-@media (max-width: 860px) {
-  .pastor-shell .app-main-header { margin: 8px 10px 0; border-radius: 28px; min-height: 72px !important; padding: 10px 14px !important; gap: 10px !important; box-shadow: var(--shadow-1); }
-  .pastor-shell .app-menu-btn, .pastor-shell .app-page-title, .pastor-shell .app-search-btn, .pastor-shell .app-theme-btn { display: none !important; }
-  .pastor-shell .pastor-mobile-brand { display: flex; gap: 9px; align-items: center; margin-right: auto; font-weight: 800; font-size: 17px; color: var(--text); }
-  .pastor-mobile-brand img { width: 44px; height: 44px; border-radius: 13px; object-fit: contain; background: #0656f9; padding: 5px; }
-  .pastor-shell .pastor-notification { display: flex; align-items: center; }
-  .pastor-shell .app-main { padding: 16px 14px calc(124px + env(safe-area-inset-bottom)) !important; min-width: 0; }
-  .pastor-shell .app-main-content, .pastor-dashboard { min-width: 0; }
-  .pastor-mobile-overview { display: flex; flex-direction: column; gap: 28px; }
-  .pastor-desktop-overview { display: none !important; }
-  .pastor-hero { color: white; border-radius: 28px; padding: 24px 22px; background: linear-gradient(120deg, #0759fa, #0048e8); box-shadow: 0 12px 25px rgba(0,83,245,.14); min-height: 170px; }
-  .pastor-hero-eyebrow { font-size: 10px; font-weight: 700; letter-spacing: .10em; opacity: .82; }
-  .pastor-hero-label { font-size: 17px; font-weight: 500; margin-top: 10px; }
-  .pastor-hero-main { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-  .pastor-hero-main strong { font-size: 48px; font-weight: 700; line-height: 1.2; font-variant-numeric: tabular-nums; }
-  .pastor-hero-main button { border: 0; background: none; color: white; display: flex; gap: 2px; align-items: center; min-height: 44px; font-weight: 600; font-size: 13px; white-space: nowrap; }
-  .pastor-hero-sub { font-size: 12px; opacity: .85; overflow-wrap: anywhere; }
-  .pastor-section-title { font-family: var(--font-body); font-size: 20px; font-weight: 600; color: var(--muted); margin-bottom: 14px; }
-  .pastor-quick-actions { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 8px; }
-  .pastor-quick-actions button { min-width: 0; min-height: 100px; padding: 14px 3px 10px; background: var(--card); border: 1px solid var(--line); border-radius: 19px; display: flex; flex-direction: column; gap: 14px; align-items: center; justify-content: center; color: #0759fa; box-shadow: var(--shadow-1); }
-  .pastor-quick-actions span { font-size: clamp(10px,2.8vw,12px); font-weight: 650; color: var(--text); text-align: center; }
-  .pastor-report-list { display: grid; gap: 10px; }
-  .pastor-report-list button { min-height: 66px; width: 100%; display: flex; align-items: center; gap: 14px; padding: 10px 16px; border-radius: 18px; background: var(--card); color: #0759fa; border: 1px solid var(--line); text-align: left; }
-  .pastor-report-list span { flex: 1; color: var(--text); font-size: 14px; font-weight: 650; }
-  .pastor-report-list strong { font-size: 14px; color: var(--muted); }
-  .pastor-suggestions { display: flex; gap: 12px; overflow-x: auto; overscroll-behavior-inline: contain; scroll-snap-type: x mandatory; padding-bottom: 4px; scrollbar-width: none; }
-  .pastor-suggestions button { flex: 0 0 min(72%,240px); min-height: 176px; border-radius: 24px; padding: 18px; border: 1px solid var(--line); color: var(--text); background: var(--card); display: flex; flex-direction: column; align-items: flex-start; justify-content: space-between; gap: 8px; text-align: left; scroll-snap-align: start; }
-  .pastor-suggestions button:nth-child(2) { background: color-mix(in srgb, var(--card), #e7d6ff 18%); }
-  .pastor-suggestions span { font-size: 17px; font-weight: 750; line-height: 1.25; }
-  .pastor-suggestions svg { color: #0759fa; align-self: center; }
-  .pastor-suggestions small { color: var(--muted); font-size: 11px; }
-  .pastor-bottom-nav { position: fixed; bottom: calc(12px + env(safe-area-inset-bottom)); left: 10px; right: 10px; z-index: 800; height: 76px; display: grid; grid-template-columns: repeat(5,minmax(0,1fr)); align-items: center; background: var(--card); border: 1px solid var(--line); border-radius: 42px; box-shadow: 0 5px 32px rgba(12,27,58,.16); padding: 8px 4px; }
-  .pastor-bottom-nav button { border: none; background: transparent; color: var(--muted); min-width: 0; min-height: 48px; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 3px; }
-  .pastor-bottom-nav button.is-active { color: #0759fa; }
-  .pastor-bottom-nav span { font-size: clamp(9px,2.5vw,11px); font-weight: 600; }
-  .pastor-bottom-nav .pastor-centre-action { width: 64px; height: 64px; min-height: 64px; margin: -34px auto 0; border: 5px solid var(--page); background: #0759fa; color: white; border-radius: 50%; box-sizing: content-box; }
-  .pastor-more-overlay { position: fixed; inset: 0; z-index: 1100; background: rgba(5,15,30,.52); display: flex; align-items: flex-end; }
-  .pastor-more-sheet { width: 100%; max-height: 80dvh; overflow-y: auto; background: var(--card); border-radius: 28px 28px 0 0; padding: 20px 18px calc(24px + env(safe-area-inset-bottom)); color: var(--text); }
-  .pastor-more-heading { display: flex; align-items: center; justify-content: space-between; font-size: 18px; margin-bottom: 10px; }
-  .pastor-more-heading button, .pastor-more-sheet > button { border: none; background: transparent; color: var(--text); min-height: 48px; }
-  .pastor-more-sheet > button { display: flex; align-items: center; width: 100%; gap: 12px; text-align: left; border-bottom: 1px solid var(--line); }
-  .pastor-more-sheet > button span { flex: 1; }
-  .pastor-shell .pastor-dashboard .sicc-grid { grid-template-columns: minmax(0,1fr) !important; }
-  .pastor-shell .pastor-dashboard .sicc-panel { min-width: 0; }
-  .pastor-shell input, .pastor-shell select, .pastor-shell textarea { font-size: 16px !important; }
-  .pastor-shell .sicc-table-wrap { overflow-x: visible !important; border: none !important; }
-  .pastor-shell .sicc-table { display: none; }
-  .pastor-shell .sicc-mobile-cards { display: grid; gap: 10px; }
-  .pastor-shell .sicc-mobile-card { padding: 14px; border: 1px solid var(--line); border-radius: 16px; background: var(--card); min-width: 0; }
-  .pastor-shell .sicc-mobile-card div { min-width: 0; overflow-wrap: anywhere; }
-  .pastor-shell .sicc-mobile-card dt { font-size: 11px; color: var(--muted); margin: 6px 0 2px; }
-  .pastor-shell .sicc-mobile-card dd { font-size: 13px; color: var(--text); margin: 0; }
-  .pastor-shell .sicc-mobile-card[role="button"] { cursor: pointer; }
-  .pastor-shell [role="dialog"][aria-modal="true"] { max-height: calc(93dvh - env(safe-area-inset-bottom)) !important; border-radius: 24px 24px 0 0 !important; }
-}
-@media (min-width: 861px) { .sicc-mobile-cards { display: none; } }
-@media (max-width: 860px) { .sicc-mobile-cards { display: none; } }
-@media print { .pastor-bottom-nav, .pastor-more-overlay, .pastor-mobile-overview { display: none !important; } .pastor-desktop-overview { display: flex !important; } }
-@media (max-width: 860px) {
-  /* The shared modal remains keyboard-trapped; Pastor sees it as a bottom sheet. */
-  .pastor-shell div:has(> [role="dialog"][aria-modal="true"]):not(.pastor-more-overlay) { align-items: flex-end !important; padding: 0 !important; }
-  .pastor-shell div:has(> [role="dialog"][aria-modal="true"]):not(.pastor-more-overlay) > [role="dialog"] { width: 100% !important; max-width: none !important; }
 }

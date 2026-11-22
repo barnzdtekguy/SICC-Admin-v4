@@ -132,7 +132,7 @@ export const verifyAuditChain = () => apiRequest('/audit/verify');
 export const getBrief = () => apiRequest('/brief');
 export const getReportOverview = params => apiRequest(`/reports/overview${queryString(params)}`);
 export const getNotifications = () => apiRequest('/notifications');
-export const markNotificationsRead = () => mutationResult('/notifications/read-all', { method: 'POST', body: {} });
+export const markNotificationRead = id => apiRequest(`/notifications/${encodeURIComponent(id)}/read`, { method: 'POST', body: {} });
 export const searchEverything = q => apiRequest(`/search${queryString({ q })}`);
 export const getMemberTimeline = id => apiRequest(`/members/${encodeURIComponent(id)}/timeline`);
 export const updateMember = (id, body) => mutationResult(`/members/${encodeURIComponent(id)}`, { method: 'PATCH', body });

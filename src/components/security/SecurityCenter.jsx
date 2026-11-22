@@ -51,7 +51,7 @@ export function MfaSetup({ onDone }) {
 
   const begin = async () => {
     setBusy(true); setError('');
-    try { const data = await apiRequest('/auth/mfa/setup', { method: 'POST', body: {} }); setSetup(data); setQr(await QRCode.toDataURL(data.otpauth_url, { margin: 1, width: 200, color: { dark: '#0C1B3A', light: '#FFFFFF' } })); setStage('scan'); }
+    try { const data = await apiRequest('/auth/mfa/setup', { method: 'POST', body: {} }); setSetup(data); setQr(await QRCode.toDataURL(data.otpauth_url, { margin: 1, width: 200, color: { dark: C.qrDark, light: C.qrLight } })); setStage('scan'); }
     catch (e) { setError(e.message); } finally { setBusy(false); }
   };
   const enable = async e => {
@@ -79,7 +79,7 @@ export function MfaSetup({ onDone }) {
         <li>Enter the 6-digit code the app shows.</li>
       </ol>
       <div style={{ display: 'flex', gap: 18, alignItems: 'center', flexWrap: 'wrap' }}>
-        <img src={qr} width="200" height="200" alt="QR code for your authenticator app" style={{ borderRadius: 12, border: `1px solid ${C.border}`, background: '#fff' }} />
+        <img src={qr} width="200" height="200" alt="QR code for your authenticator app" style={{ borderRadius: 12, border: `1px solid ${C.border}`, background: C.qrLight }} />
         <div><div style={{ fontSize: 12, color: C.textMuted, marginBottom: 4 }}>Can’t scan? Enter this key:</div><code style={{ fontSize: 15, letterSpacing: 1.5, wordBreak: 'break-all', color: C.textPrimary }}>{setup.secret.match(/.{1,4}/g).join(' ')}</code></div>
       </div>
       <Input label="6-digit code" value={code} onChange={setCode} inputMode="numeric" autoComplete="one-time-code" maxLength={7} required />
@@ -89,7 +89,7 @@ export function MfaSetup({ onDone }) {
   return (
     <div style={{ display: 'grid', gap: 14, maxWidth: 520 }}>
       <Alert type="warning" message="Save these recovery codes now. They are shown only once. If you lose your phone, each code lets you sign in one time." />
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, padding: 16, border: `1px dashed ${C.borderStrong}`, borderRadius: 12, background: C.inputBg }}>
+      <div className="sicc-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, padding: 16, border: `1px dashed ${C.borderStrong}`, borderRadius: 12, background: C.inputBg }}>
         {codes.map(c => <code key={c} style={{ fontSize: 15, letterSpacing: 1, color: C.textPrimary }}>{c}</code>)}
       </div>
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>

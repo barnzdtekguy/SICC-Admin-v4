@@ -1,43 +1,32 @@
 // src/components/shared/UI.jsx
 // Shared building blocks. Every export keeps its v3 props, so existing screens keep working;
 // new optional props add accessibility, loading states, sorting/paging and CSV export.
-import { useEffect, useId, useMemo, useRef, useState } from 'react';
-import { AlertCircle, CheckCircle, Info, XCircle, X, ArrowUp, ArrowDown, ChevronLeft, ChevronRight, Download } from 'lucide-react';
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
+import { AlertCircle, CheckCircle, Info, XCircle, X, ArrowUp, ArrowDown, ChevronDown, ChevronLeft, ChevronRight, Download, Search } from 'lucide-react';
 import { C } from '../../lib/theme';
+import FloatingCard from './FloatingCard';
+import '../../styles/shared-ui.css';
 
 export { C };
 
-const label12 = { fontSize: 12, fontWeight: 600, color: C.textSecondary, letterSpacing: '0.01em' };
-
-export function StatCard({ label, value, sub, icon, color = C.blue, onClick, loading }) {
+export function StatCard({ label, value, sub, icon, onClick, loading }) {
   const Tag = onClick ? 'button' : 'div';
   return (
-    <Tag type={onClick ? 'button' : undefined} className={`sicc-stat-card${onClick ? ' is-clickable' : ''}`} onClick={onClick}
-      style={{ background: C.cardBg, border: `1px solid ${C.border}`, borderRadius: 14, padding: '16px 18px', cursor: onClick ? 'pointer' : 'default', position: 'relative', overflow: 'hidden', textAlign: 'left', width: '100%', color: 'inherit', font: 'inherit', boxShadow: 'var(--shadow-1)' }}>
-      <div aria-hidden style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: color }} />
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginTop: 4, gap: 8 }}>
-        <div style={{ minWidth: 0 }}>
-          <div style={{ fontSize: 12, color: C.textMuted, fontWeight: 600, marginBottom: 6 }}>{label}</div>
-          {loading ? <div className="skeleton" style={{ width: 70, height: 30 }} /> : <div className="display" style={{ fontSize: 34, color: C.textPrimary, lineHeight: 1 }}>{value ?? '–'}</div>}
-          {sub && <div style={{ fontSize: 12, color: C.textSecondary, marginTop: 6, fontWeight: 500 }}>{sub}</div>}
-        </div>
-        {icon && <div aria-hidden style={{ width: 40, height: 40, borderRadius: 10, background: `${color}18`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, color }}>{icon}</div>}
+    <Tag type={onClick ? 'button' : undefined} className={`sicc-stat-card${onClick ? ' is-clickable' : ''}`} onClick={onClick}>
+      <div className="sicc-stat-content">
+        <small>{label}</small>
+        {loading ? <div className="skeleton" style={{ width: 70, height: 30 }} /> : <div className="display">{value ?? '–'}</div>}
+        {sub && <small>{sub}</small>}
       </div>
+      {icon && <span className="sicc-stat-icon" aria-hidden="true">{icon}</span>}
     </Tag>
   );
 }
 
 export function Panel({ children, title, action, style: s }) {
   return (
-    <section className="sicc-panel" aria-label={typeof title === 'string' ? title : undefined} style={{ background: C.cardBg, border: `1px solid ${C.border}`, borderRadius: 14, padding: '18px 20px', minWidth: 0, boxShadow: 'var(--shadow-1)', ...s }}>
-      {title && (
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap', marginBottom: 16, paddingBottom: 12, borderBottom: `1px solid ${C.border}` }}>
-          <h2 style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, fontWeight: 600, color: C.textPrimary, margin: 0 }}>
-            <span aria-hidden style={{ width: 3, height: 15, background: C.gold, borderRadius: 2 }} />{title}
-          </h2>
-          {action}
-        </div>
-      )}
+    <section className="sicc-panel" aria-label={typeof title === 'string' ? title : undefined} style={s}>
+      {title && <SectionTitle action={action}>{title}</SectionTitle>}
       {children}
     </section>
   );
@@ -45,36 +34,38 @@ export function Panel({ children, title, action, style: s }) {
 
 export function SectionTitle({ children, action }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 14 }}>
-      <h2 style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, fontWeight: 600, color: C.textPrimary, margin: 0 }}>
-        <span aria-hidden style={{ width: 3, height: 15, background: C.gold, borderRadius: 2 }} />{children}
-      </h2>
+    <div className="sicc-section-title">
+      <h2>{children}</h2>
       {action}
     </div>
   );
 }
 
-export function Badge({ label, color = C.blue, bg }) {
-  return <span style={{ display: 'inline-block', padding: '3px 10px', borderRadius: 20, background: bg || `${color}1F`, color, fontSize: 12, fontWeight: 600, border: `1px solid ${color}38`, whiteSpace: 'nowrap' }}>{label}</span>;
+const statusTone = color => color === C.success ? 'success' : color === C.danger ? 'danger' : color === C.warning ? 'warning' : undefined;
+
+export function Badge({ label, color, bg }) {
+  return <span className="sicc-badge" data-tone={statusTone(color) || (color === C.gold ? 'accent' : undefined)} style={bg ? { background: bg } : undefined}>{label}</span>;
 }
+
+const statusLabels = new Map([
+  ['New Convert', 'New convert'], ['Active Member', 'Active member'], ['Evangelism Contact', 'Evangelism contact'],
+  ['In Progress', 'In progress'], ['No Response', 'No response'],
+]);
 
 export function StatusBadge({ status }) {
   const map = {
-    'New Convert': { color: C.blue, bg: C.blueLight },
-    'Active Member': { color: C.success, bg: C.successBg },
-    'Worker': { color: C.gold, bg: '#FDF6E7' },
-    'Evangelism Contact': { color: C.danger, bg: C.dangerBg },
-    'Completed': { color: C.success, bg: C.successBg },
-    'In Progress': { color: C.warning, bg: C.warningBg },
-    'No Response': { color: C.danger, bg: C.dangerBg },
-    'Active': { color: C.success, bg: C.successBg },
+    'Active Member': C.success,
+    Worker: C.gold,
+    Completed: C.success,
+    'In Progress': C.warning,
+    'No Response': C.danger,
+    Active: C.success,
   };
-  const s = map[status] || { color: C.textSecondary, bg: C.pageBg };
-  return <Badge label={status} color={s.color} bg={s.bg} />;
+  return <Badge label={statusLabels.get(status) || status} color={map[status]} />;
 }
 
-export function Avatar({ initials, color = C.blue, size = 38 }) {
-  return <div style={{ width: size, height: size, borderRadius: Math.round(size * 0.26), background: `${color}18`, border: `1px solid ${color}30`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: size * 0.33, fontWeight: 500, color, flexShrink: 0 }}>{initials}</div>;
+export function Avatar({ initials, size = 38 }) {
+  return <span className="sicc-avatar" style={{ '--avatar-size': `${size}px` }}>{initials}</span>;
 }
 
 export function InfoRow({ icon, label, value, color }) {
@@ -82,7 +73,7 @@ export function InfoRow({ icon, label, value, color }) {
     <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '8px 0', borderBottom: `0.5px solid ${C.border}` }}>
       <span style={{ color: C.textMuted, marginTop: 1, flexShrink: 0, display: 'flex', alignItems: 'center' }}>{icon}</span>
       <div style={{ flex: 1 }}>
-        <div style={{ fontSize: 11, color: C.textMuted, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 2 }}>{label}</div>
+        <div style={{ fontSize: 12, color: C.textMuted, marginBottom: 2 }}>{label}</div>
         <div style={{ fontSize: 13, color: color || C.textPrimary, fontWeight: 500 }}>{value || 'N/A'}</div>
       </div>
     </div>
@@ -111,21 +102,42 @@ export function ActivityFeed({ items, limit = 10 }) {
 
 export function SearchInput({ value, onChange, placeholder = 'Search...' }) {
   return (
-    <div style={{ position: 'relative' }}>
-      <span style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', color: C.textMuted, display: 'flex' }}>
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-      </span>
-      <input aria-label={placeholder} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} style={{ width: '100%', padding: '9px 12px 9px 34px', background: C.inputBg, border: `1px solid ${C.border}`, borderRadius: 8, color: C.textPrimary, fontSize: 13, outline: 'none', fontFamily: 'inherit', boxSizing: 'border-box' }} />
+    <div className="sicc-search">
+      <Search size={20} strokeWidth={1.75} aria-hidden="true" />
+      <input className="sicc-control" aria-label={placeholder} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder} />
     </div>
   );
 }
 
 export function FilterSelect({ value, onChange, options, placeholder = 'Filter...' }) {
+  const [open, setOpen] = useState(false);
+  const trigger = useRef(null);
+  const id = useId();
+  const close = useCallback(() => setOpen(false), []);
+  const selected = String(value ?? '');
+  const choices = [{ value: '', label: placeholder }, ...options.map(option => ({
+    value: String(option.value ?? option), label: statusLabels.get(option.label ?? option) || (option.label ?? option),
+  }))];
+  const current = choices.find(option => option.value === selected);
   return (
-    <select aria-label={placeholder} value={value} onChange={e => onChange(e.target.value)} style={{ padding: '9px 12px', background: C.inputBg, border: `1px solid ${C.border}`, borderRadius: 8, color: C.textPrimary, fontSize: 13, outline: 'none', fontFamily: 'inherit' }}>
-      <option value="">{placeholder}</option>
-      {options.map(o => <option key={o.value ?? o} value={o.value ?? o}>{o.label ?? o}</option>)}
-    </select>
+    <>
+      <button ref={trigger} type="button" className="sicc-filter" aria-label={selected ? `${placeholder}: ${current?.label ?? selected}` : placeholder}
+        aria-haspopup="dialog" aria-expanded={open} aria-controls={open ? id : undefined} onClick={() => setOpen(value => !value)}>
+        <span>{current?.label || placeholder}</span><ChevronDown size={20} strokeWidth={1.75} aria-hidden="true" />
+      </button>
+      {open && (
+        <FloatingCard id={id} title={placeholder} triggerRef={trigger} onClose={close} width={296} mobileSheet>
+          <div className="floating-card-actions">
+            {choices.map(option => (
+              <button key={option.value} type="button" aria-pressed={option.value === selected}
+                onClick={() => { if (option.value !== selected) onChange(option.value); close(); }}>
+                <span>{option.label}</span>{option.value === selected && <CheckCircle size={20} strokeWidth={1.75} aria-hidden="true" />}
+              </button>
+            ))}
+          </div>
+        </FloatingCard>
+      )}
+    </>
   );
 }
 
@@ -135,17 +147,9 @@ export function Grid({ children, cols = 'repeat(auto-fit, minmax(200px, 1fr))', 
 
 
 export function Btn({ children, onClick, color = C.blue, variant = 'solid', size = 'md', disabled, type = 'button', loading, title, ariaLabel, full, style }) {
-  const pad = size === 'sm' ? '6px 12px' : size === 'lg' ? '13px 28px' : '9px 18px';
-  const fs = size === 'sm' ? 12 : size === 'lg' ? 14 : 13;
-  const off = disabled || loading;
-  const base = { padding: pad, minHeight: size === 'sm' ? 32 : 40, borderRadius: 10, fontSize: fs, fontWeight: 600, opacity: off ? 0.55 : 1, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 6, border: `1px solid ${color}`, width: full ? '100%' : undefined, ...style };
-  const variants = {
-    solid: { ...base, background: color, color: color === C.gold ? '#0C1B3A' : '#fff' },
-    outline: { ...base, background: 'transparent', color: color === C.gold ? C.goldText : color },
-    ghost: { ...base, background: `${color}14`, color: color === C.gold ? C.goldText : color, border: `1px solid ${color}26` },
-  };
   return (
-    <button type={type} className="sicc-btn" style={variants[variant] || variants.solid} onClick={onClick} disabled={off} title={title} aria-label={ariaLabel} aria-busy={loading || undefined}>
+    <button type={type} className="sicc-btn" data-variant={variant} data-size={size} data-tone={statusTone(color)} data-full={full || undefined}
+      style={style} onClick={onClick} disabled={disabled || loading} title={title} aria-label={ariaLabel} aria-busy={loading || undefined}>
       {loading && <Spinner size={14} color="currentColor" />}{children}
     </button>
   );
@@ -153,21 +157,19 @@ export function Btn({ children, onClick, color = C.blue, variant = 'solid', size
 
 function Field({ id, label, required, hint, error, children }) {
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-      {label && <label htmlFor={id} style={label12}>{label}{required && <span aria-hidden style={{ color: C.danger, marginLeft: 3 }}>*</span>}</label>}
+    <div className="sicc-field">
+      {label && <label htmlFor={id}>{label}{required && <span aria-hidden="true"> *</span>}</label>}
       {children}
-      {error ? <span id={`${id}-msg`} role="alert" style={{ fontSize: 12, color: C.danger }}>{error}</span> : hint && <span id={`${id}-msg`} style={{ fontSize: 12, color: C.textMuted }}>{hint}</span>}
+      {error ? <small id={`${id}-msg`} role="alert">{error}</small> : hint && <small id={`${id}-msg`}>{hint}</small>}
     </div>
   );
 }
-const controlStyle = (error, extra) => ({ width: '100%', minHeight: 42, padding: '10px 12px', background: C.inputBg, border: `1px solid ${error ? C.danger : C.border}`, borderRadius: 10, color: C.textPrimary, fontSize: 14, outline: 'none', ...extra });
-
 export function Input({ label, value, onChange, type = 'text', placeholder, required, hint, error, disabled, autoComplete, inputMode, maxLength, min, max, name, autoFocus, id: idProp }) {
   const auto = useId(); const id = idProp || auto;
   return (
     <Field id={id} label={label} required={required} hint={hint} error={error}>
-      <input id={id} name={name} type={type} value={value ?? ''} onChange={e => onChange(e.target.value)} placeholder={placeholder} required={required} disabled={disabled}
-        autoComplete={autoComplete} inputMode={inputMode} maxLength={maxLength} min={min} max={max} autoFocus={autoFocus} aria-invalid={error ? true : undefined} aria-describedby={error || hint ? `${id}-msg` : undefined} style={controlStyle(error)} />
+      <input className="sicc-control" id={id} name={name} type={type} value={value ?? ''} onChange={e => onChange(e.target.value)} placeholder={placeholder} required={required} disabled={disabled}
+        autoComplete={autoComplete} inputMode={inputMode} maxLength={maxLength} min={min} max={max} autoFocus={autoFocus} aria-invalid={error ? true : undefined} aria-describedby={error || hint ? `${id}-msg` : undefined} />
     </Field>
   );
 }
@@ -176,9 +178,9 @@ export function Select({ label, value, onChange, options, required, hint, error,
   const auto = useId(); const id = idProp || auto;
   return (
     <Field id={id} label={label} required={required} hint={hint} error={error}>
-      <select id={id} value={value ?? ''} onChange={e => onChange(e.target.value)} required={required} disabled={disabled} aria-invalid={error ? true : undefined} style={controlStyle(error, { color: value ? C.textPrimary : C.textMuted, cursor: 'pointer' })}>
+      <select className="sicc-control" id={id} value={value ?? ''} onChange={e => onChange(e.target.value)} required={required} disabled={disabled} aria-invalid={error ? true : undefined} aria-describedby={error || hint ? `${id}-msg` : undefined} aria-label={!label ? placeholder : undefined}>
         <option value="">{placeholder}</option>
-        {options.map(o => <option key={o.value ?? o} value={o.value ?? o}>{o.label ?? o}</option>)}
+        {options.map(o => <option key={o.value ?? o} value={o.value ?? o}>{statusLabels.get(o.label ?? o) || (o.label ?? o)}</option>)}
       </select>
     </Field>
   );
@@ -188,7 +190,7 @@ export function Textarea({ label, value, onChange, placeholder, rows = 4, requir
   const auto = useId(); const id = idProp || auto;
   return (
     <Field id={id} label={label} required={required} hint={hint} error={error}>
-      <textarea id={id} value={value ?? ''} onChange={e => onChange(e.target.value)} placeholder={placeholder} rows={rows} required={required} maxLength={maxLength} aria-invalid={error ? true : undefined} style={controlStyle(error, { resize: 'vertical', lineHeight: 1.5 })} />
+      <textarea className="sicc-control" id={id} value={value ?? ''} onChange={e => onChange(e.target.value)} placeholder={placeholder} rows={rows} required={required} maxLength={maxLength} aria-invalid={error ? true : undefined} aria-describedby={error || hint ? `${id}-msg` : undefined} />
     </Field>
   );
 }
@@ -197,8 +199,8 @@ export function Checkbox({ label, checked, onChange, hint, error }) {
   const id = useId();
   return (
     <div>
-      <label htmlFor={id} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, fontSize: 13, color: C.textPrimary, cursor: 'pointer', lineHeight: 1.45 }}>
-        <input id={id} type="checkbox" checked={!!checked} onChange={e => onChange(e.target.checked)} style={{ width: 18, height: 18, marginTop: 1, accentColor: C.info, flexShrink: 0 }} />
+      <label htmlFor={id} className="sicc-checkbox">
+        <input id={id} type="checkbox" checked={!!checked} onChange={e => onChange(e.target.checked)} />
         <span>{label}</span>
       </label>
       {hint && !error && <div style={{ fontSize: 12, color: C.textMuted, marginLeft: 28, marginTop: 3 }}>{hint}</div>}
@@ -209,7 +211,7 @@ export function Checkbox({ label, checked, onChange, hint, error }) {
 
 const FOCUSABLE = 'a[href],button:not([disabled]),textarea,input:not([disabled]),select,[tabindex]:not([tabindex="-1"])';
 
-export function Modal({ title, onClose, children, width = 520, footer }) {
+export function Modal({ title, onClose, children, width = 520, footer, placement }) {
   const ref = useRef(null);
   const titleId = useId();
   const closeRef = useRef(onClose);
@@ -220,6 +222,8 @@ export function Modal({ title, onClose, children, width = 520, footer }) {
     const first = node?.querySelector('input,select,textarea') || node?.querySelector(FOCUSABLE);
     first?.focus();
     const onKey = e => {
+      const modals = document.querySelectorAll('.sicc-modal');
+      if (document.querySelector('.floating-card-layer') || modals[modals.length - 1] !== node) return;
       if (e.key === 'Escape') { e.stopPropagation(); closeRef.current?.(); return; }
       if (e.key !== 'Tab' || !node) return;
       const items = [...node.querySelectorAll(FOCUSABLE)].filter(el => el.offsetParent !== null);
@@ -229,18 +233,17 @@ export function Modal({ title, onClose, children, width = 520, footer }) {
       else if (!e.shiftKey && document.activeElement === z) { e.preventDefault(); a.focus(); }
     };
     document.addEventListener('keydown', onKey);
-    const prevOverflow = document.body.style.overflow; document.body.style.overflow = 'hidden';
-    return () => { document.removeEventListener('keydown', onKey); document.body.style.overflow = prevOverflow; previous?.focus?.(); };
+    return () => { document.removeEventListener('keydown', onKey); previous?.focus?.({ preventScroll: true }); };
   }, []);
   return (
-    <div style={{ position: 'fixed', inset: 0, background: 'rgba(7,14,28,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: 16, backdropFilter: 'blur(4px)' }} onMouseDown={e => e.target === e.currentTarget && onClose?.()}>
-      <div ref={ref} role="dialog" aria-modal="true" aria-labelledby={titleId} style={{ background: C.cardBg, border: `1px solid ${C.border}`, borderRadius: 16, width: '100%', maxWidth: width, maxHeight: '90vh', overflow: 'auto', boxShadow: 'var(--shadow-2)', animation: 'rise .18s ease-out' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px', borderBottom: `1px solid ${C.border}`, position: 'sticky', top: 0, background: C.cardBg, zIndex: 1 }}>
-          <h2 id={titleId} style={{ fontSize: 17, fontWeight: 600, color: C.textPrimary }}>{title}</h2>
-          <button type="button" onClick={onClose} aria-label="Close dialog" style={{ background: 'none', border: 'none', color: C.textMuted, padding: 6, borderRadius: 8, display: 'flex' }}><X size={18} /></button>
+    <div className="sicc-modal-overlay" data-placement={placement} onMouseDown={e => e.target === e.currentTarget && onClose?.()}>
+      <div ref={ref} className="sicc-modal" role="dialog" aria-modal="true" aria-labelledby={titleId} style={{ '--dialog-width': typeof width === 'number' ? `${width}px` : width }}>
+        <div className="sicc-modal-header">
+          <h2 id={titleId}>{title}</h2>
+          <button className="floating-card-close" type="button" onClick={onClose} aria-label="Close dialog"><X size={20} strokeWidth={1.75} aria-hidden="true" /></button>
         </div>
-        <div style={{ padding: 20 }}>{children}</div>
-        {footer && <div style={{ padding: '12px 20px 18px', display: 'flex', gap: 10, justifyContent: 'flex-end', flexWrap: 'wrap', borderTop: `1px solid ${C.border}` }}>{footer}</div>}
+        <div className="sicc-modal-content">{children}</div>
+        {footer && <div className="sicc-modal-footer">{footer}</div>}
       </div>
     </div>
   );
@@ -265,6 +268,8 @@ const csvCell = v => { let s = v === null || v === undefined ? '' : String(v); i
 export function DataTable({ columns, rows, emptyText = 'No records found', onRowClick, loading, pageSize = 25, exportName, caption, dense }) {
   const [sort, setSort] = useState(null);
   const [page, setPage] = useState(0);
+  const [allColumns, setAllColumns] = useState(false);
+  const tableId = useId();
   const sorted = useMemo(() => {
     if (!sort) return rows || [];
     const col = columns.find(c => c.key === sort.key);
@@ -290,47 +295,80 @@ export function DataTable({ columns, rows, emptyText = 'No records found', onRow
     document.body.appendChild(a); a.click(); a.remove();
   };
 
-  if (loading) return <div aria-busy="true" style={{ display: 'grid', gap: 8 }}>{[0, 1, 2, 3].map(i => <div key={i} className="skeleton" style={{ height: 40 }} />)}</div>;
-  if (!total) return <div style={{ textAlign: 'center', padding: '36px 16px', color: C.textMuted, fontSize: 14 }}>{emptyText}</div>;
-  const pad = dense ? '8px 12px' : '12px 14px';
+  if (loading) return <div className="sicc-table-loading" aria-busy="true">{[0, 1, 2, 3].map(i => <div key={i} className="skeleton" />)}</div>;
+  if (!total) return <div className="sicc-table-empty">{emptyText}</div>;
+  const actionColumns = columns.filter(column => column.key === 'actions' || !column.label);
+  const recordColumns = columns.filter(column => !actionColumns.includes(column));
+  const pinnedColumns = [...actionColumns, ...recordColumns.filter(column => column.key === 'status')];
+  const defaultColumns = new Set([...pinnedColumns, ...recordColumns.filter(column => !pinnedColumns.includes(column))].slice(0, 6));
+  const tableColumns = allColumns ? columns : columns.filter(column => defaultColumns.has(column));
+  const sortColumns = recordColumns.filter(column => column.sortable !== false).map(column => ({ value: column.key, label: column.label }));
+  const renderCell = (column, row) => column.render ? column.render(row[column.key], row) : row[column.key] ?? '–';
+  const openRow = (event, row) => {
+    if (!event.target.closest('a, button, input, select, textarea, summary')) onRowClick(row);
+  };
   return (
-    <div>
-      {exportName && <div className="no-print" style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}><Btn size="sm" variant="ghost" color={C.textSecondary} onClick={exportCsv}><Download size={13} aria-hidden /> Export CSV</Btn></div>}
-      <div className="sicc-table-wrap" style={{ overflowX: 'auto', border: `1px solid ${C.border}`, borderRadius: 10 }}>
-        <div className="sicc-mobile-cards" aria-label={caption || 'Table records'}>
-          {visible.map((row, i) => <div key={row.id ?? i} className="sicc-mobile-card" role={onRowClick ? 'button' : undefined} tabIndex={onRowClick ? 0 : undefined} onClick={onRowClick ? () => onRowClick(row) : undefined} onKeyDown={onRowClick ? e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onRowClick(row); } } : undefined}>
-            <dl>{columns.filter(c => c.key !== 'actions').map(c => <div key={c.key}><dt>{c.label}</dt><dd>{c.render ? c.render(row[c.key], row) : (row[c.key] ?? '–')}</dd></div>)}</dl>
-            {columns.filter(c => c.key === 'actions').map(c => <div key={c.key}>{c.render ? c.render(row[c.key], row) : null}</div>)}
-          </div>)}
+    <div className="sicc-records">
+      {(exportName || columns.length > 6 || sortColumns.length > 0) && (
+        <div className="sicc-table-tools no-print">
+          {sortColumns.length > 0 && <div className="sicc-card-sort">
+            <FilterSelect value={sort?.key} onChange={key => setSort(key ? { key, dir: 'asc' } : null)} options={sortColumns} placeholder="Sort records" />
+            {sort && <Btn size="sm" variant="outline" ariaLabel={sort.dir === 'asc' ? 'Sort descending' : 'Sort ascending'}
+              onClick={() => setSort(current => ({ ...current, dir: current.dir === 'asc' ? 'desc' : 'asc' }))}>
+              {sort.dir === 'asc' ? <ArrowUp size={20} aria-hidden="true" /> : <ArrowDown size={20} aria-hidden="true" />}
+            </Btn>}
+          </div>}
+          {columns.length > 6 && <span className="sicc-column-toggle"><button type="button" className="sicc-btn" data-size="sm" data-variant="outline"
+            onClick={() => setAllColumns(value => !value)} aria-expanded={allColumns} aria-controls={tableId}>
+            {allColumns ? 'Show fewer columns' : 'Show all columns'}
+          </button></span>}
+          {exportName && <Btn size="sm" variant="ghost" onClick={exportCsv}><Download size={20} aria-hidden="true" /> Export CSV</Btn>}
         </div>
-        <table className="sicc-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+      )}
+      <div className="sicc-table-wrap">
+        <ul className="sicc-mobile-cards" aria-label={caption || 'Table records'}>
+          {visible.map((row, index) => (
+            <li key={row.id ?? index} className="sicc-mobile-card" onClick={onRowClick ? event => openRow(event, row) : undefined}>
+              <dl>{recordColumns.map(column => <div key={column.key}><dt>{column.label}</dt><dd>{renderCell(column, row)}</dd></div>)}</dl>
+              {(actionColumns.length > 0 || onRowClick) && <div className="sicc-card-actions">
+                {actionColumns.map(column => <div key={column.key}>{renderCell(column, row)}</div>)}
+                {onRowClick && <Btn variant="outline" size="sm" onClick={() => onRowClick(row)}>View record</Btn>}
+              </div>}
+            </li>
+          ))}
+        </ul>
+        <table id={tableId} className="sicc-table" data-dense={dense || undefined}>
           {caption && <caption className="sr-only">{caption}</caption>}
           <thead>
-            <tr>{columns.map(c => {
+            <tr>{tableColumns.map(c => {
               const active = sort?.key === c.key;
               const sortable = c.sortable !== false && c.key !== 'actions' && c.label;
               return (
-                <th key={c.key} scope="col" aria-sort={active ? (sort.dir === 'asc' ? 'ascending' : 'descending') : undefined} style={{ padding: pad, textAlign: 'left', fontSize: 12, fontWeight: 600, color: C.textSecondary, background: C.inputBg, borderBottom: `1px solid ${C.border}`, whiteSpace: 'nowrap', width: c.width }}>
-                  {sortable ? <button type="button" onClick={() => toggleSort(c.key)} style={{ background: 'none', border: 'none', color: 'inherit', font: 'inherit', display: 'inline-flex', alignItems: 'center', gap: 4, padding: 0 }}>{c.label}{active && (sort.dir === 'asc' ? <ArrowUp size={12} aria-hidden /> : <ArrowDown size={12} aria-hidden />)}</button> : c.label}
+                <th key={c.key} scope="col" aria-sort={active ? (sort.dir === 'asc' ? 'ascending' : 'descending') : undefined} style={{ width: c.width }}>
+                  {sortable ? <button type="button" onClick={() => toggleSort(c.key)}>{c.label}{active && (sort.dir === 'asc' ? <ArrowUp size={16} aria-hidden="true" /> : <ArrowDown size={16} aria-hidden="true" />)}</button> : c.label}
                 </th>
               );
             })}</tr>
           </thead>
           <tbody>
             {visible.map((row, i) => (
-              <tr key={row.id ?? i} onClick={onRowClick ? () => onRowClick(row) : undefined} tabIndex={onRowClick ? 0 : undefined} role={onRowClick ? 'button' : undefined}
-                onKeyDown={onRowClick ? e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onRowClick(row); } } : undefined}
-                style={{ cursor: onRowClick ? 'pointer' : 'default', borderBottom: i < visible.length - 1 ? `1px solid ${C.border}` : 'none' }}>
-                {columns.map(c => <td key={c.key} style={{ padding: pad, color: C.textPrimary, verticalAlign: 'middle' }}>{c.render ? c.render(row[c.key], row) : (row[c.key] ?? '–')}</td>)}
+              <tr key={row.id ?? i} onClick={onRowClick ? event => openRow(event, row) : undefined} tabIndex={onRowClick ? 0 : undefined} role={onRowClick ? 'button' : undefined}
+                onKeyDown={onRowClick ? event => {
+                  if (event.target === event.currentTarget && (event.key === 'Enter' || event.key === ' ')) {
+                    event.preventDefault();
+                    onRowClick(row);
+                  }
+                } : undefined}>
+                {tableColumns.map(column => <td key={column.key}>{renderCell(column, row)}</td>)}
               </tr>
             ))}
           </tbody>
         </table>
       </div>
       {pageSize > 0 && total > pageSize && (
-        <nav className="no-print" aria-label="Table pages" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginTop: 10, fontSize: 12, color: C.textSecondary, flexWrap: 'wrap' }}>
+        <nav className="sicc-table-pages no-print" aria-label="Table pages">
           <span>{page * pageSize + 1}–{Math.min(total, (page + 1) * pageSize)} of {total}</span>
-          <span style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+          <span>
             <Btn size="sm" variant="outline" color={C.textSecondary} disabled={page === 0} onClick={() => setPage(p => p - 1)} ariaLabel="Previous page"><ChevronLeft size={14} aria-hidden /></Btn>
             <span>Page {page + 1} of {pages}</span>
             <Btn size="sm" variant="outline" color={C.textSecondary} disabled={page >= pages - 1} onClick={() => setPage(p => p + 1)} ariaLabel="Next page"><ChevronRight size={14} aria-hidden /></Btn>
@@ -370,7 +408,7 @@ export function PageSkeleton() {
   return (
     <div aria-busy="true" aria-label="Loading page" style={{ display: 'grid', gap: 16 }}>
       <Skeleton w={220} h={28} />
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 14 }}>{[0, 1, 2, 3].map(i => <Skeleton key={i} h={92} style={{ borderRadius: 14 }} />)}</div>
+      <div className="sicc-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 14 }}>{[0, 1, 2, 3].map(i => <Skeleton key={i} h={92} style={{ borderRadius: 14 }} />)}</div>
       <Skeleton h={260} style={{ borderRadius: 14 }} />
     </div>
   );

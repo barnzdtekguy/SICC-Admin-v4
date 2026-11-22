@@ -1,12 +1,13 @@
 // src/components/admin/AdminDashboard.jsx
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../hooks/useAuth';
-import { StatCard, Panel, Badge, DataTable, Btn, Modal, Input, Select, Textarea, SearchInput, C, Alert, Avatar, InfoRow, StatusBadge, SectionTitle, Grid, FilterSelect, EmptyState, ConfirmDialog } from '../shared/UI'
+import RoleHome, { attendanceBars, useHomeData } from '../shared/RoleHome';
+import { StatCard, Panel, Badge, DataTable, Btn, Modal, Input, Select, SearchInput, C, Alert, Avatar, InfoRow, StatusBadge, Grid, FilterSelect, EmptyState, ConfirmDialog } from '../shared/UI'
 import { useToast } from '../shared/Toast';
 import AttendanceHistory from '../shared/AttendanceHistory';
-import { getMembers, getProfiles, createProfile, deleteProfile, updateProfile, resetProfilePassword, resetProfileMfa, unlockProfile, getFollowUps, getAttendance, createAttendance, getLogs, getSMSConfig, saveSMSConfig, addLog } from '../../lib/db';
+import { getBrief, getMembers, getProfiles, createProfile, updateProfile, resetProfilePassword, resetProfileMfa, unlockProfile, getFollowUps, getAttendance, createAttendance, getLogs, getSMSConfig, saveSMSConfig } from '../../lib/db';
 import { DEPARTMENTS, KDF_AREAS, ROLES, ROLE_COLORS, ROLE_LABELS, SERVICE_TYPES } from '../../data/constants';
-import { Users, UserCheck, MapPin, Building2, CheckSquare, TrendingUp, Phone, ClipboardList, BarChart2, Calendar, Activity, Briefcase, MessageSquare, Map, Settings, UserPlus } from 'lucide-react';
+import { Users, UserCheck, MapPin, Building2, CheckSquare, TrendingUp, Phone, ClipboardList, BarChart2, Calendar, Activity, Briefcase, MessageSquare, Settings, UserPlus } from 'lucide-react';
 
 import ProgrammeAttendance from '../pastor/ProgrammeAttendance';
 
@@ -16,109 +17,43 @@ export default function AdminDashboard({ activeTab, setActiveTab }) {
   return <Comp setActiveTab={setActiveTab} />;
 }
 
-function Overview({ setActiveTab }) {
-  const [members, setMembers] = useState([]);
-  const [profiles, setProfiles] = useState([]);
-  const [logs, setLogs] = useState([]);
-  const [preview, setPreview] = useState(null);
-  useEffect(() => { Promise.all([getMembers(), getProfiles(), getLogs(10)]).then(([m, p, l]) => { setMembers(m); setProfiles(p); setLogs(l); }); }, []);
-  const pastors = profiles.filter(p => p.role === ROLES.PASTOR);
-  const deptLeaders = profiles.filter(p => p.role === ROLES.DEPARTMENT_LEADER);
-  const kdfCoords = profiles.filter(p => p.role === ROLES.KDF_COORDINATOR);
+const loadHome = () => ({ brief: getBrief(), members: getMembers(), profiles: getProfiles() });
 
-  const openPreview = (tab, title, details, description) => {
-    setPreview({ tab, title, details, description });
-  };
-
+function Overview() {
+  const { data, reload } = useHomeData(loadHome);
+  const { brief, members, profiles } = data || {};
+  const weeklyChange = brief?.newMembersPrev7d == null ? null : brief.newMembers7d - brief.newMembersPrev7d;
+  const attention = [
+    { title: 'Pending approvals', value: brief?.pendingApprovals, to: '/app/approvals' },
+    { title: 'Overdue follow-ups', value: brief?.overdueFollowUps, to: '/app/followups', Icon: Phone },
+    { title: 'Unverified attendance', value: brief?.unverifiedAttendance, to: '/app/attendance', Icon: CheckSquare },
+  ].filter(row => row.value > 0).map(row => ({ ...row, detail: `${row.value} to review` }));
+  const staff = profiles?.filter(profile => [ROLES.PASTOR, ROLES.DEPARTMENT_LEADER, ROLES.KDF_COORDINATOR].includes(profile.role));
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-      <Grid cols="repeat(auto-fit, minmax(150px, 1fr))">
-        <StatCard label="Total Members" value={members.length} icon={<Users size={18} />} color={C.gold} onClick={() => openPreview('members', 'Members Snapshot', [
-          { label: 'Total Members', value: members.length },
-          { label: 'Pastors', value: pastors.length },
-          { label: 'Departments', value: DEPARTMENTS.length },
-        ], 'Review the full membership list and manage current member records from one place.')} />
-        <StatCard label="Pastors" value={pastors.length} icon={<UserCheck size={18} />} color={C.success} onClick={() => openPreview('staff', 'Pastor Staff Snapshot', [
-          { label: 'Pastors', value: pastors.length },
-          { label: 'Dept Leaders', value: deptLeaders.length },
-          { label: 'KDF Coords', value: kdfCoords.length },
-        ], 'Inspect the pastor roster and broader staff accountability structure.')} />
-        <StatCard label="Dept Leaders" value={deptLeaders.length} icon={<Building2 size={18} />} color={C.purple} onClick={() => openPreview('departments', 'Departments Snapshot', [
-          { label: 'Department Leaders', value: deptLeaders.length },
-          { label: 'Departments', value: DEPARTMENTS.length },
-          { label: 'Members', value: members.length },
-        ], 'Confirm department leadership coverage and departmental membership distribution.')} />
-        <StatCard label="KDF Coords" value={kdfCoords.length} icon={<MapPin size={18} />} color={C.danger} onClick={() => openPreview('kdf', 'KDF Management Snapshot', [
-          { label: 'KDF Coordinators', value: kdfCoords.length },
-          { label: 'KDF Areas', value: KDF_AREAS.length },
-          { label: 'Members', value: members.length },
-        ], 'Review KDF area coordination coverage and assign support where needed.')} />
-        <StatCard label="Departments" value={DEPARTMENTS.length} icon={<ClipboardList size={18} />} color={C.gold} onClick={() => openPreview('departments', 'Departments Snapshot', [
-          { label: 'Departments', value: DEPARTMENTS.length },
-          { label: 'Department Leaders', value: deptLeaders.length },
-          { label: 'Members', value: members.length },
-        ], 'Open the department overview to inspect leader assignments and structure.')} />
-        <StatCard label="KDF Areas" value={KDF_AREAS.length} icon={<Map size={18} />} color={C.blue} onClick={() => openPreview('kdf', 'KDF Areas Snapshot', [
-          { label: 'KDF Areas', value: KDF_AREAS.length },
-          { label: 'Coordinators', value: kdfCoords.length },
-          { label: 'Members', value: members.length },
-        ], 'Open the KDF management section for detailed area leadership and member distribution.')} />
-      </Grid>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-        <Panel title="System Activity">
-          {logs.length === 0 ? <EmptyState icon={<Activity size={28} color={C.textMuted} />} title="No activity yet" /> :
-            logs.map((item, i) => (
-              <div key={i} style={{ display: 'flex', gap: 10, padding: '8px 0', borderBottom: `0.5px solid ${C.border}` }}>
-                <div style={{ width: 7, height: 7, borderRadius: '50%', background: C.gold, marginTop: 5, flexShrink: 0 }} />
-                <div>
-                  <div style={{ fontSize: 13, color: C.textPrimary }}><strong style={{ fontWeight: 500 }}>{item.user_name}</strong><span style={{ color: C.textSecondary }}>: {item.action}</span></div>
-                  <div style={{ fontSize: 11, color: C.textMuted, marginTop: 2 }}>{item.detail} · {new Date(item.created_at).toLocaleString('en-NG', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</div>
-                </div>
-              </div>
-            ))
-          }
-        </Panel>
-        <Panel title="Staff at a Glance">
-          {[...pastors, ...deptLeaders, ...kdfCoords].slice(0, 8).map(u => {
-            const color = ROLE_COLORS[u.role] || C.blue;
-            return (
-              <div key={u.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 0', borderBottom: `0.5px solid ${C.border}` }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <Avatar initials={u.avatar} color={color} size={30} />
-                  <div>
-                    <div style={{ fontSize: 13, color: C.textPrimary, fontWeight: 500 }}>{u.name}</div>
-                    <div style={{ fontSize: 11, color: C.textMuted }}>{u.email}</div>
-                  </div>
-                </div>
-                <Badge label={ROLE_LABELS[u.role]} color={color} />
-              </div>
-            );
-          })}
-          {[...pastors, ...deptLeaders, ...kdfCoords].length === 0 && <EmptyState icon={<Users size={28} color={C.textMuted} />} title="No staff yet" description="Create staff in User Management." />}
-        </Panel>
-      </div>
-
-      {preview && (
-        <Modal title={preview.title} onClose={() => setPreview(null)} width={460}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <div style={{ color: C.textSecondary, fontSize: 13, lineHeight: 1.6 }}>{preview.description}</div>
-            {preview.details.map((item) => (
-              <div key={item.label} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '9px 10px', background: C.pageBg, borderRadius: 8, border: `1px solid ${C.border}` }}>
-                <span style={{ fontSize: 12, color: C.textMuted }}>{item.label}</span>
-                <strong style={{ fontSize: 14, color: C.navy }}>{item.value}</strong>
-              </div>
-            ))}
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 4 }}>
-              <Btn color={C.navy} onClick={() => { setPreview(null); setActiveTab?.(preview.tab); }}>
-                View Section
-              </Btn>
-            </div>
-          </div>
-        </Modal>
-      )}
-    </div>
+    <RoleHome
+      hero={{ label: 'Total members', value: members?.length,
+        note: brief?.newMembers7d == null ? null : `${brief.newMembers7d} registered in the last seven days`,
+        action: { label: 'View members', to: '/app/members', Icon: Users } }}
+      stats={[
+        { label: 'New members this week', value: brief?.newMembers7d, to: '/app/members', note: weeklyChange ? `${weeklyChange > 0 ? '+' : ''}${weeklyChange} vs last week` : null },
+        { label: 'Staff on roster', value: staff?.length, to: '/app/staff' },
+        { label: 'Pending approvals', value: brief?.pendingApprovals, to: '/app/approvals' },
+        { label: 'Birthdays today', value: brief?.birthdaysToday },
+      ]}
+      chart={{ title: 'Recent service attendance', bars: attendanceBars(brief?.attendanceTrend), to: '/app/attendance', unit: 'attendees' }}
+      attention={{ rows: attention, to: '/app/approvals', empty: brief ? undefined : 'Review items are unavailable.' }}
+      shortcuts={[
+        { label: 'Members', to: '/app/members', Icon: Users },
+        { label: 'Attendance', to: '/app/attendance', Icon: CheckSquare },
+        { label: 'Staff', to: '/app/staff', Icon: UserCheck },
+        { label: 'Reports', to: '/app/reports', Icon: BarChart2 },
+      ]}
+      loading={!data} error={data?.error} onRetry={reload}
+    />
   );
 }
+
+
 
 function generatePassword() {
   const sets = ['ABCDEFGHJKLMNPQRSTUVWXYZ', 'abcdefghijkmnpqrstuvwxyz', '23456789', '!@#$%*?'];
@@ -210,7 +145,7 @@ export function UserManagement() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             <Input label="Full Name" value={form.name} onChange={v => setForm({ ...form, name: v })} placeholder="e.g. Pastor John Adeyemi" required />
             <Input label="Email Address" value={form.email} onChange={v => setForm({ ...form, email: v })} type="email" placeholder="pastor@sicc.org" required />
-            <Input label="Phone Number" value={form.phone} onChange={v => setForm({ ...form, phone: v })} placeholder="08XXXXXXXXX" />
+            <Input label="Phone number" value={form.phone} onChange={v => setForm({ ...form, phone: v })} placeholder="08XXXXXXXXX" />
             <div>
               <Input label="Temporary password" value={form.password} onChange={v => setForm({ ...form, password: v })} type="text" placeholder="At least 12 characters" hint="They must replace it at first sign-in. Share it privately." required />
               <div style={{ marginTop: 6 }}><Btn size="sm" variant="ghost" color={C.info} onClick={() => setForm({ ...form, password: generatePassword() })}>Generate a strong one</Btn></div>
@@ -221,7 +156,7 @@ export function UserManagement() {
             {msg && <Alert type={msg.type} message={msg.text} />}
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 4 }}>
               <Btn variant="outline" color={C.textSecondary} onClick={() => setShowModal(false)}>Cancel</Btn>
-              <Btn onClick={handleCreate} color={C.navy} loading={loading}>Create Account</Btn>
+              <Btn onClick={handleCreate} color={C.navy} loading={loading}>Create account</Btn>
             </div>
           </div>
         </Modal>
@@ -258,7 +193,7 @@ function StaffManagement() {
   useEffect(() => { Promise.all([getProfiles(), getLogs(100), getMembers()]).then(([p, l, m]) => { setProfiles(p); setLogs(l); setMembers(m); }); }, []);
   const staff = profiles.filter(p => p.role !== ROLES.BISHOP);
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 14 }}>
+    <div className="sicc-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 14 }}>
       {staff.length === 0 && <EmptyState icon={<Users size={32} color={C.textMuted} />} title="No staff yet" description="Create users in User Management." />}
       {staff.map(s => {
         const color = ROLE_COLORS[s.role] || C.blue;
@@ -273,10 +208,10 @@ function StaffManagement() {
             <InfoRow icon={<span style={{ fontSize: 12 }}>@</span>} label="Email" value={s.email} />
             <InfoRow icon={<Phone size={13} />} label="Phone" value={s.phone} />
             {s.department && <InfoRow icon={<Building2 size={13} />} label="Department" value={s.department} />}
-            {s.kdf_area && <InfoRow icon={<MapPin size={13} />} label="KDF Area" value={s.kdf_area} />}
-            {s.role === ROLES.PASTOR && <InfoRow icon={<ClipboardList size={13} />} label="Members Registered" value={regCount} color={C.gold} />}
+            {s.kdf_area && <InfoRow icon={<MapPin size={13} />} label="KDF area" value={s.kdf_area} />}
+            {s.role === ROLES.PASTOR && <InfoRow icon={<ClipboardList size={13} />} label="Members registered" value={regCount} color={C.gold} />}
             <div style={{ borderTop: `0.5px solid ${C.border}`, paddingTop: 10, marginTop: 8 }}>
-              <div style={{ fontSize: 10, color: C.textMuted, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>Activity Log</div>
+              <div style={{ fontSize: 10, color: C.textMuted, marginBottom: 6 }}>Activity log</div>
               {staffLogs.length === 0 ? <div style={{ fontSize: 12, color: C.textMuted }}>No activity yet.</div>
                 : staffLogs.slice(0, 3).map((l, i) => <div key={i} style={{ fontSize: 12, color: C.textSecondary, padding: '2px 0' }}>• {l.action}: {l.detail}</div>)}
             </div>
@@ -303,8 +238,8 @@ function AllMembers() {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
         <div style={{ flex: 1, minWidth: 200 }}><SearchInput value={search} onChange={setSearch} placeholder="Search name, phone, address, KDF..." /></div>
-        <FilterSelect value={filterStatus} onChange={setFilterStatus} options={['New Convert', 'Active Member', 'Worker', 'Evangelism Contact'].map(s => ({ value: s, label: s }))} placeholder="All Statuses" />
-        <FilterSelect value={filterKDF} onChange={setFilterKDF} options={kdfOptions} placeholder="All KDF Areas" />
+        <FilterSelect value={filterStatus} onChange={setFilterStatus} options={['New Convert', 'Active Member', 'Worker', 'Evangelism Contact'].map(s => ({ value: s, label: s }))} placeholder="All statuses" />
+        <FilterSelect value={filterKDF} onChange={setFilterKDF} options={kdfOptions} placeholder="All KDF areas" />
         <Badge label={`${filtered.length} of ${members.length}`} color={C.gold} />
       </div>
       <Panel>
@@ -313,7 +248,7 @@ function AllMembers() {
             { key: 'name', label: 'Name', render: (_, r) => <strong style={{ color: C.textPrimary }}>{r.first_name} {r.last_name}</strong> },
             { key: 'phone', label: 'Phone' },
             { key: 'address', label: 'Address' },
-            { key: 'kdf_area', label: 'KDF Area', render: v => <Badge label={v} color={C.purple} /> },
+            { key: 'kdf_area', label: 'KDF area', render: v => <Badge label={v} color={C.purple} /> },
             { key: 'department', label: 'Department', render: v => v || 'N/A' },
             { key: 'status', label: 'Status', render: v => <StatusBadge status={v} /> },
             { key: 'date_of_birth', label: 'DOB', render: v => v || 'N/A' },
@@ -332,13 +267,13 @@ function DeptMgmt() {
   const [profiles, setProfiles] = useState([]);
   useEffect(() => { Promise.all([getMembers(), getProfiles()]).then(([m, p]) => { setMembers(m); setProfiles(p); }); }, []);
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: 12 }}>
+    <div className="sicc-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: 12 }}>
       {DEPARTMENTS.map(d => {
         const count = members.filter(m => m.department === d.name).length;
         const leader = profiles.find(p => p.role === ROLES.DEPARTMENT_LEADER && p.department === d.name);
         return (
-          <Panel key={d.id} style={{ borderTop: `3px solid ${d.color}` }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}><Building2 size={16} color={d.color} /><div style={{ fontSize: 14, fontWeight: 500, color: C.textPrimary }}>{d.name}</div></div>
+          <Panel key={d.id}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}><Building2 size={20} strokeWidth={1.75} color="var(--accent-ink)" aria-hidden="true" /><div style={{ fontSize: 14, fontWeight: 500, color: C.textPrimary }}>{d.name}</div></div>
             <div style={{ fontSize: 12, color: C.textSecondary, marginBottom: 8, lineHeight: 1.6 }}>
               HODs: <strong style={{ color: C.navy }}>{d.heads.length ? d.heads.join(', ') : 'Not listed'}</strong>
             </div>
@@ -350,7 +285,7 @@ function DeptMgmt() {
             <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 10 }}>
               Portal account: <strong style={{ color: leader ? C.navy : C.textMuted }}>{leader?.name || 'Not assigned'}</strong>
             </div>
-            <Badge label={`${count} members`} color={d.color} />
+            <Badge label={`${count} members`} />
           </Panel>
         );
       })}
@@ -366,7 +301,7 @@ function KDFMgmt() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       <Alert type="info" message={`All ${KDF_AREAS.length} KDF areas loaded from the 2026 official document. Auto-KDF assignment is active.`} />
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(270px, 1fr))', gap: 12 }}>
+      <div className="sicc-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(270px, 1fr))', gap: 12 }}>
         {KDF_AREAS.map(k => {
           const count = members.filter(m => m.kdf_area === k.name).length;
           const appCoord = profiles.find(p => p.role === ROLES.KDF_COORDINATOR && p.kdf_area === k.name);
@@ -425,14 +360,14 @@ function Attendance() {
         </Grid>
         <Btn onClick={() => setShowModal(true)} color={C.navy}><CheckSquare size={14} /> Record Attendance</Btn>
       </div>
-      <Panel title="Attendance History">
+      <Panel title="Attendance history">
         <AttendanceHistory records={records} reload={reload} showDept />
       </Panel>
       {showModal && (
         <Modal title="Record Attendance" onClose={() => setShowModal(false)}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             <Input label="Date" value={form.date} onChange={v => setForm({ ...form, date: v })} type="date" required />
-            <Select label="Service Type" value={form.service} onChange={v => setForm({ ...form, service: v })} options={SERVICE_TYPES} />
+            <Select label="Service type" value={form.service} onChange={v => setForm({ ...form, service: v })} options={SERVICE_TYPES} />
             <Input label="Total Count" value={form.count} onChange={v => setForm({ ...form, count: v })} type="number" placeholder="Total people present" required />
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
               <Btn variant="outline" color={C.textSecondary} onClick={() => setShowModal(false)}>Cancel</Btn>
@@ -463,14 +398,14 @@ function FollowUps() {
       <Grid cols="repeat(auto-fit, minmax(150px, 1fr))">
         <StatCard label="Total Reports" value={followUps.length} icon={<Phone size={18} />} color={C.blue} />
         <StatCard label="Completed" value={followUps.filter(f => f.status === 'Completed').length} icon={<CheckSquare size={18} />} color={C.success} />
-        <StatCard label="In Progress" value={followUps.filter(f => f.status === 'In Progress').length} icon={<Activity size={18} />} color={C.warning} />
-        <StatCard label="No Response" value={followUps.filter(f => f.status === 'No Response').length} icon={<MessageSquare size={18} />} color={C.danger} />
+        <StatCard label="In progress" value={followUps.filter(f => f.status === 'In Progress').length} icon={<Activity size={18} />} color={C.warning} />
+        <StatCard label="No response" value={followUps.filter(f => f.status === 'No Response').length} icon={<MessageSquare size={18} />} color={C.danger} />
       </Grid>
-      {byPastor.length > 0 && <Panel title="Pastor Accountability"><DataTable columns={[{ key: 'name', label: 'Pastor' }, { key: 'total', label: 'Total', render: v => <Badge label={v} color={C.blue} /> }, { key: 'completed', label: 'Completed', render: v => <Badge label={v} color={C.success} /> }, { key: 'inProgress', label: 'In Progress', render: v => <Badge label={v} color={C.warning} /> }]} rows={byPastor} emptyText="No pastors yet." /></Panel>}
+      {byPastor.length > 0 && <details className="sicc-disclosure"><summary>Pastor accountability</summary><DataTable columns={[{ key: 'name', label: 'Pastor' }, { key: 'total', label: 'Total', render: v => <Badge label={v} color={C.blue} /> }, { key: 'completed', label: 'Completed', render: v => <Badge label={v} color={C.success} /> }, { key: 'inProgress', label: 'In progress', render: v => <Badge label={v} color={C.warning} /> }]} rows={byPastor} emptyText="No pastors yet." /></details>}
       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
         <div style={{ flex: 1, minWidth: 200 }}><SearchInput value={search} onChange={setSearch} placeholder="Search member, pastor, notes..." /></div>
-        <FilterSelect value={filterPastor} onChange={setFilterPastor} options={pastors.map(p => ({ value: p.name, label: p.name }))} placeholder="All Pastors" />
-        <FilterSelect value={filterStatus} onChange={setFilterStatus} options={['In Progress', 'Completed', 'No Response'].map(s => ({ value: s, label: s }))} placeholder="All Statuses" />
+        <FilterSelect value={filterPastor} onChange={setFilterPastor} options={pastors.map(p => ({ value: p.name, label: p.name }))} placeholder="All pastors" />
+        <FilterSelect value={filterStatus} onChange={setFilterStatus} options={['In Progress', 'Completed', 'No Response'].map(s => ({ value: s, label: s }))} placeholder="All statuses" />
         <Badge label={`${filtered.length}`} color={C.gold} />
       </div>
       <Panel title="All Follow-Up Reports">
@@ -491,8 +426,8 @@ function FollowUps() {
           <InfoRow icon={<Calendar size={14} />} label="Date" value={selected.date} />
           <InfoRow icon={<Phone size={14} />} label="Method" value={selected.method} />
           <InfoRow icon={<Activity size={14} />} label="Status" value={selected.status} />
-          <div style={{ marginTop: 14 }}><div style={{ fontSize: 11, color: C.textMuted, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>Notes</div><div style={{ fontSize: 13, background: C.pageBg, borderRadius: 8, padding: 12, lineHeight: 1.7 }}>{selected.notes}</div></div>
-          {selected.outcome && <div style={{ marginTop: 12 }}><div style={{ fontSize: 11, color: C.textMuted, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>Outcome</div><div style={{ fontSize: 13, background: C.pageBg, borderRadius: 8, padding: 12, lineHeight: 1.7 }}>{selected.outcome}</div></div>}
+          <div style={{ marginTop: 14 }}><div style={{ fontSize: 11, color: C.textMuted, marginBottom: 6 }}>Notes</div><div style={{ fontSize: 13, background: C.pageBg, borderRadius: 8, padding: 12, lineHeight: 1.7 }}>{selected.notes}</div></div>
+          {selected.outcome && <div style={{ marginTop: 12 }}><div style={{ fontSize: 11, color: C.textMuted, marginBottom: 6 }}>Outcome</div><div style={{ fontSize: 13, background: C.pageBg, borderRadius: 8, padding: 12, lineHeight: 1.7 }}>{selected.outcome}</div></div>}
         </Modal>
       )}
     </div>
@@ -507,18 +442,18 @@ function Reports() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       <Grid cols="repeat(auto-fit, minmax(150px, 1fr))">
-        <StatCard label="Total Members" value={members.length} icon={<ClipboardList size={18} />} color={C.gold} />
-        <StatCard label="New Converts" value={members.filter(m => m.status === 'New Convert').length} icon={<TrendingUp size={18} />} color={C.blue} />
-        <StatCard label="Active Members" value={members.filter(m => m.status === 'Active Member').length} icon={<CheckSquare size={18} />} color={C.success} />
+        <StatCard label="Total members" value={members.length} icon={<ClipboardList size={18} />} color={C.gold} />
+        <StatCard label="New converts" value={members.filter(m => m.status === 'New Convert').length} icon={<TrendingUp size={18} />} color={C.blue} />
+        <StatCard label="Active members" value={members.filter(m => m.status === 'Active Member').length} icon={<CheckSquare size={18} />} color={C.success} />
         <StatCard label="Workers" value={members.filter(m => m.status === 'Worker').length} icon={<Briefcase size={18} />} color={C.gold} />
         <StatCard label="Follow-Ups" value={followUps.length} icon={<Phone size={18} />} color={C.purple} />
       </Grid>
       <Panel title="Registrations by Pastor">
-        <DataTable columns={[{ key: 'name', label: 'Pastor' }, { key: 'count', label: 'Members Registered', render: v => <Badge label={v} color={C.success} /> }, { key: 'converts', label: 'New Converts', render: v => <Badge label={v} color={C.gold} /> }]} rows={profiles.filter(p => p.role === ROLES.PASTOR).map(p => ({ name: p.name, count: members.filter(m => m.registered_by === p.id).length, converts: members.filter(m => m.registered_by === p.id && m.status === 'New Convert').length }))} emptyText="No pastors yet." />
+        <DataTable columns={[{ key: 'name', label: 'Pastor' }, { key: 'count', label: 'Members registered', render: v => <Badge label={v} color={C.success} /> }, { key: 'converts', label: 'New converts', render: v => <Badge label={v} color={C.gold} /> }]} rows={profiles.filter(p => p.role === ROLES.PASTOR).map(p => ({ name: p.name, count: members.filter(m => m.registered_by === p.id).length, converts: members.filter(m => m.registered_by === p.id && m.status === 'New Convert').length }))} emptyText="No pastors yet." />
       </Panel>
-      <Panel title="KDF Area Breakdown">
+      <details className="sicc-disclosure"><summary>KDF area breakdown</summary>
         <DataTable columns={[{ key: 'name', label: 'Area' }, { key: 'coordinator', label: 'Coordinator' }, { key: 'count', label: 'Members', render: v => <Badge label={v} color={C.purple} /> }]} rows={KDF_AREAS.map(k => ({ ...k, count: members.filter(m => m.kdf_area === k.name).length }))} />
-      </Panel>
+      </details>
     </div>
   );
 }

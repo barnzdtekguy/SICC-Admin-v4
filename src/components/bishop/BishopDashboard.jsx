@@ -1,55 +1,52 @@
 // src/components/bishop/BishopDashboard.jsx
 import { useState, useEffect } from 'react';
 import { useAuth } from '../../hooks/useAuth';
-import { StatCard, Panel, Badge, DataTable, Btn, Modal, Textarea, Input, Select, ActivityFeed, Grid, SearchInput, C, Alert, Avatar, InfoRow, StatusBadge, SectionTitle, FilterSelect, EmptyState } from '../shared/UI';
+import RoleHome, { attendanceBars, useHomeData } from '../shared/RoleHome';
+import { StatCard, Panel, Badge, DataTable, Btn, Modal, Textarea, Input, Select, Grid, SearchInput, C, Alert, Avatar, InfoRow, StatusBadge, SectionTitle, FilterSelect, EmptyState } from '../shared/UI';
 import { getMembers, getProfiles, getFollowUps, getAttendance, getLogs, getAssignments, createAssignment, updateAssignment, deleteAssignment, getMessageStatus, sendSms, getBrief } from '../../lib/db';
 import { DEPARTMENTS, KDF_AREAS, ROLES, ROLE_COLORS, ROLE_LABELS, getTodaysBirthdays } from '../../data/constants';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart, Bar, CartesianGrid } from 'recharts';
-import { Users, Star, UserCheck, MapPin, Building2, CheckSquare, TrendingUp, Phone, ClipboardList, BarChart2, Calendar, MessageSquare, Activity, Briefcase, Bell, Clock, Heart, Send, Gift, ArrowUpRight, ChevronRight, Inbox, QrCode } from 'lucide-react';
+import { Users, Star, UserCheck, MapPin, Building2, CheckSquare, TrendingUp, Phone, ClipboardList, BarChart2, Calendar, MessageSquare, Activity, Briefcase, Bell, Clock, Heart, Send, Gift, Inbox, QrCode } from 'lucide-react';
 
 import ProgrammeAttendance from '../pastor/ProgrammeAttendance';
 import { UserManagement } from '../admin/AdminDashboard';
 
-export default function BishopDashboard({ activeTab, setActiveTab, mobile }) {
-  if (mobile && activeTab === 'overview') return <MobileOverview setActiveTab={setActiveTab} />;
+export default function BishopDashboard({ activeTab, setActiveTab }) {
   const map = { overview: Overview, users: UserManagement, growth: Growth, staff: StaffMonitor, members: Members, kdf: KDFView, departments: DeptView, followups: FollowUps, programmes: ProgrammeAttendance, communication: Communication, reports: Reports, assignments: Assignments };
   const Comp = map[activeTab] || Overview;
   return <Comp setActiveTab={setActiveTab} />;
 }
 
-const quickActions = [
-  { label: 'Members', tab: 'members', Icon: Users },
-  { label: 'Attendance', tab: 'programmes', Icon: QrCode },
-  { label: 'Follow-ups', tab: 'followups', Icon: Phone },
-  { label: 'Messages', tab: 'communication', Icon: MessageSquare },
-];
+const loadHome = () => ({ brief: getBrief() });
 
 function BirthdayWish({ member }) {
   const wish = `Happy Birthday, ${member.first_name}! The Lord bless and keep you. With best wishes from Bishop Enobong Etteh and the Salem International Christian Centre.`;
-  return <Btn size="sm" variant="ghost" color={C.gold} onClick={() => window.open(`https://wa.me/234${member.phone?.replace(/^0/, '')}?text=${encodeURIComponent(wish)}`, '_blank')}>
-    <Gift size={13} /> Send Wishes
-  </Btn>;
+  return (
+    <Btn size="sm" variant="ghost" color={C.gold}
+      onClick={() => window.open(`https://wa.me/234${member.phone?.replace(/^0/, '')}?text=${encodeURIComponent(wish)}`, '_blank', 'noopener,noreferrer')}>
+      <Gift size={20} aria-hidden="true" /> Send wishes
+    </Btn>
+  );
 }
 
-function MobileBirthdays({ count, onClose }) {
-  const [members, setMembers] = useState(count === 0 ? [] : null);
+function Birthdays({ onClose }) {
+  const [members, setMembers] = useState(null);
   const [failed, setFailed] = useState(false);
   useEffect(() => {
-    if (count === 0) return undefined;
-    let current = true;
-    getMembers().then(data => { if (current) setMembers(getTodaysBirthdays(data)); })
-      .catch(() => { if (current) setFailed(true); });
-    return () => { current = false; };
-  }, [count]);
-
+    let active = true;
+    getMembers().then(data => { if (active) setMembers(getTodaysBirthdays(data)); })
+      .catch(() => { if (active) setFailed(true); });
+    return () => { active = false; };
+  }, []);
   return (
     <Modal title="Birthdays today" onClose={onClose}>
-      {failed && <p role="alert">Birthdays could not be loaded. Close and reopen this list to try again.</p>}
+      {failed && <p role="alert">Birthdays are unavailable. Close and reopen to try again.</p>}
       {!failed && !members && <p role="status">Loading birthdays…</p>}
       {members?.length === 0 && <p>No birthdays today.</p>}
       {members?.map(member => (
-        <div className="bishop-birthday-row" key={member.id}>
-          <strong>{member.first_name} {member.last_name}</strong>
+        <div className="role-home-birthday-row" key={member.id}>
+          <div><strong>{member.first_name} {member.last_name}</strong>
+            <small>{[member.kdf_area, member.phone].filter(Boolean).join(' · ')}</small></div>
           {member.phone && <BirthdayWish member={member} />}
         </div>
       ))}
@@ -57,251 +54,85 @@ function MobileBirthdays({ count, onClose }) {
   );
 }
 
-function MobileOverview({ setActiveTab }) {
-  const [brief, setBrief] = useState(null);
-  const [failed, setFailed] = useState(false);
-  const [attempt, setAttempt] = useState(0);
+function Overview() {
+  const { data, reload } = useHomeData(loadHome);
   const [birthdaysOpen, setBirthdaysOpen] = useState(false);
-  useEffect(() => {
-    let current = true;
-    getBrief().then(data => { if (current) setBrief(data); })
-      .catch(() => { if (current) setFailed(true); });
-    return () => { current = false; };
-  }, [attempt]);
-
+  const brief = data?.brief;
   const latest = brief?.attendanceTrend?.at(-1);
-  const reports = [
-    { label: 'Attendance reports', tab: 'reports', Icon: BarChart2 },
-    { label: 'Approvals', tab: 'approvals', Icon: Inbox, detail: brief ? `${brief.pendingApprovals} pending` : null },
-  ];
-  const cards = [
-    { label: 'Church growth', detail: brief ? `${brief.newMembers7d} new this week` : 'Membership trends', Icon: TrendingUp, tone: 'navy', open: () => setActiveTab('growth') },
-    { label: 'Staff monitor', detail: 'Pastors and leaders', Icon: UserCheck, tone: 'gold', open: () => setActiveTab('staff') },
-    { label: 'Birthdays today', detail: brief ? `${brief.birthdaysToday} to celebrate` : 'Member birthdays', Icon: Gift, tone: 'cream', open: () => setBirthdaysOpen(true) },
-  ];
-
+  const attention = [
+    { title: 'Pending approvals', value: brief?.pendingApprovals, to: '/app/approvals', Icon: Inbox },
+    { title: 'Overdue follow-ups', value: brief?.overdueFollowUps, to: '/app/followups', Icon: Phone },
+    { title: 'Unverified attendance', value: brief?.unverifiedAttendance, to: '/app/reports', Icon: CheckSquare },
+  ].filter(row => row.value > 0).map(row => ({ ...row, detail: `${row.value} to review` }));
   return (
-    <div className="bishop-overview">
-      <section className="bishop-hero" aria-labelledby="bishop-attendance-title">
-        <div className="bishop-hero-data">
-          <h1 id="bishop-attendance-title">Latest service attendance</h1>
-          {latest && <strong className="bishop-hero-count">{Number(latest.count).toLocaleString('en-NG')}</strong>}
-          <p>{latest ? latest.service : failed ? 'Attendance unavailable' : brief ? 'No service recorded yet' : 'Loading attendance…'}</p>
-          {failed && <button className="bishop-hero-retry" type="button" onClick={() => { setFailed(false); setAttempt(n => n + 1); }}>Try again</button>}
-        </div>
-        <button className="bishop-hero-link" type="button" onClick={() => setActiveTab('reports')}>
-          History <ChevronRight size={17} aria-hidden="true" />
-        </button>
-      </section>
-
-      <section aria-labelledby="bishop-actions-title">
-        <h2 id="bishop-actions-title" className="bishop-section-title">Quick actions</h2>
-        <div className="bishop-quick-actions">
-          {quickActions.map(({ label, tab, Icon }) => (
-            <button key={tab} type="button" onClick={() => setActiveTab(tab)}>
-              <span className="bishop-action-icon"><Icon size={23} aria-hidden="true" /></span>
-              {label}
-            </button>
-          ))}
-        </div>
-      </section>
-
-      <section aria-labelledby="bishop-reports-title">
-        <h2 id="bishop-reports-title" className="bishop-section-title">Reports</h2>
-        <div className="bishop-report-rows">
-          {reports.map(({ label, tab, Icon, detail }) => (
-            <button key={tab} type="button" onClick={() => setActiveTab(tab)}>
-              <span className="bishop-row-icon"><Icon size={19} aria-hidden="true" /></span>
-              <span className="bishop-row-label">{label}</span>
-              {detail && <span className="bishop-row-detail">{detail}</span>}
-              <ChevronRight size={17} aria-hidden="true" />
-            </button>
-          ))}
-        </div>
-      </section>
-
-      <section aria-labelledby="bishop-ministry-title">
-        <h2 id="bishop-ministry-title" className="bishop-section-title">Ministry at a glance</h2>
-        <ul className="bishop-swipe-cards">
-          {cards.map(({ label, detail, Icon, tone, open }) => (
-            <li key={label}>
-              <button type="button" onClick={open}>
-                <span className="bishop-card-title">{label}<ArrowUpRight size={16} aria-hidden="true" /></span>
-                <span className="bishop-card-detail">{detail}</span>
-                <span className="bishop-card-icon" data-tone={tone}><Icon size={31} aria-hidden="true" /></span>
-              </button>
-            </li>
-          ))}
-        </ul>
-      </section>
-      {birthdaysOpen && <MobileBirthdays count={brief?.birthdaysToday} onClose={() => setBirthdaysOpen(false)} />}
-    </div>
+    <RoleHome
+      hero={{ label: 'Latest service attendance', value: latest?.count,
+        note: latest?.service || (data ? 'No service recorded yet' : 'Loading attendance…'),
+        action: { label: 'View history', to: '/app/reports', Icon: BarChart2 } }}
+      stats={[
+        { label: 'New members this week', value: brief?.newMembers7d, to: '/app/growth' },
+        { label: 'Follow-ups this week', value: brief?.followUps7d, to: '/app/followups' },
+        { label: 'Pending approvals', value: brief?.pendingApprovals, to: '/app/approvals' },
+        { label: 'Birthdays today', value: brief?.birthdaysToday, onClick: brief?.birthdaysToday > 0 ? () => setBirthdaysOpen(true) : undefined },
+      ]}
+      chart={{ title: 'Recent service attendance', bars: attendanceBars(brief?.attendanceTrend), to: '/app/reports', unit: 'attendees' }}
+      attention={{ rows: attention, to: '/app/approvals', empty: brief ? undefined : 'Review items are unavailable.' }}
+      shortcuts={[
+        { label: 'Members', to: '/app/members', Icon: Users },
+        { label: 'Attendance', to: '/app/programmes', Icon: QrCode },
+        { label: 'Follow-ups', to: '/app/followups', Icon: Phone },
+        { label: 'Messages', to: '/app/communication', Icon: MessageSquare },
+      ]}
+      loading={!data} error={data?.error} onRetry={reload}>
+      {birthdaysOpen && <Birthdays onClose={() => setBirthdaysOpen(false)} />}
+    </RoleHome>
   );
 }
 
-function Overview({ setActiveTab }) {
-  const { profile } = useAuth();
-  const [members, setMembers] = useState([]);
-  const [profiles, setProfiles] = useState([]);
-  const [attendance, setAttendance] = useState([]);
-  const [logs, setLogs] = useState([]);
-  const [preview, setPreview] = useState(null);
-  useEffect(() => { Promise.all([getMembers(), getProfiles(), getAttendance(), getLogs(10)]).then(([m, p, a, l]) => { setMembers(m); setProfiles(p); setAttendance(a); setLogs(l); }); }, []);
 
-  const pastors = profiles.filter(p => p.role === ROLES.PASTOR);
-  const newConverts = members.filter(m => m.status === 'New Convert');
-  const todayBirthdays = getTodaysBirthdays(members);
-  const lastService = attendance[0];
-
-  const openPreview = (tab, title, details, description) => {
-    setPreview({ tab, title, details, description });
-  };
-
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-      <div style={{ background: `linear-gradient(135deg, ${C.navy} 0%, #185FA5 100%)`, borderRadius: 14, padding: '20px 24px', display: 'flex', alignItems: 'center', gap: 16 }}>
-        <img src="/salem-logo.png" alt="Salem" style={{ width: 52, height: 52, objectFit: 'contain' }} />
-        <div>
-          <div style={{ fontSize: 18, fontWeight: 500, color: '#fff' }}>Welcome, {profile?.name}</div>
-          <div style={{ fontSize: 13, color: 'rgba(255,255,255,0.65)', marginTop: 3 }}>Salem International Christian Centre: Administrative Overview</div>
-        </div>
-        {todayBirthdays.length > 0 && (
-          <div style={{ marginLeft: 'auto', background: 'rgba(201,168,76,0.2)', border: '1px solid rgba(201,168,76,0.4)', borderRadius: 10, padding: '8px 14px', textAlign: 'center' }}>
-            <Gift size={18} color={C.gold} />
-            <div style={{ fontSize: 12, color: C.gold, fontWeight: 500, marginTop: 4 }}>{todayBirthdays.length} Birthday{todayBirthdays.length > 1 ? 's' : ''} Today</div>
-          </div>
-        )}
-      </div>
-
-      <Grid cols="repeat(auto-fit, minmax(160px, 1fr))">
-        <StatCard label="Total Members" value={members.length} icon={<Users size={18} />} color={C.gold} onClick={() => openPreview('members', 'Members Overview', [
-          { label: 'Total Registered', value: members.length },
-          { label: 'New Converts', value: newConverts.length },
-          { label: 'Active Pastors', value: pastors.length },
-        ], 'See the full membership list and recent register status in one place.')} />
-        <StatCard label="New Converts" value={newConverts.length} icon={<Star size={18} />} color={C.blue} sub="Need follow-up" onClick={() => openPreview('members', 'New Converts', [
-          { label: 'New Converts', value: newConverts.length },
-          { label: 'Need Follow-Up', value: newConverts.length },
-          { label: 'Last Service', value: lastService?.service || 'N/A' },
-        ], 'These are newly registered members needing pastoral follow-up support.')} />
-        <StatCard label="Need follow-up" value={newConverts.length} icon={<Bell size={18} />} color={C.warning} onClick={() => openPreview('followups', 'Follow-Up Queue', [
-          { label: 'Pending Follow-Ups', value: newConverts.length },
-          { label: 'Assigned Pastors', value: pastors.length },
-          { label: 'Services Recorded', value: attendance.length },
-        ], 'Review the current follow-up queue and assign pastoral support where needed.')} />
-        <StatCard label="Active Pastors" value={pastors.length} icon={<UserCheck size={18} />} color={C.success} onClick={() => openPreview('staff', 'Pastor Monitoring', [
-          { label: 'Active Pastors', value: pastors.length },
-          { label: 'Total Staff', value: profiles.length },
-          { label: 'Last Activity', value: logs[0]?.action || 'No activity yet' },
-        ], 'Track pastor activity, assigned members, and follow-up accountability.')} />
-        <StatCard label="KDF Areas" value={KDF_AREAS.length} icon={<MapPin size={18} />} color={C.purple} onClick={() => openPreview('kdf', 'KDF Areas Overview', [
-          { label: 'KDF Areas', value: KDF_AREAS.length },
-          { label: 'Members in Areas', value: members.length },
-          { label: 'Coordinators', value: KDF_AREAS.filter(k => k.coordinator).length },
-        ], 'Review coverage by KDF area and drill into the members assigned to each one.')} />
-        <StatCard label="Departments" value={DEPARTMENTS.length} icon={<Building2 size={18} />} color={C.danger} onClick={() => openPreview('departments', 'Departments Overview', [
-          { label: 'Departments', value: DEPARTMENTS.length },
-          { label: 'Leaders Assigned', value: profiles.filter(p => p.role === ROLES.DEPARTMENT_LEADER).length },
-          { label: 'Members Counted', value: members.length },
-        ], 'Inspect departmental leadership coverage and team sizing.')} />
-        <StatCard label="Last Attendance" value={lastService?.count ?? 'N/A'} icon={<CheckSquare size={18} />} color={C.gold} sub={lastService?.service} />
-      </Grid>
-
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-        <Panel title="Recent Activity"><ActivityFeed items={logs} limit={8} /></Panel>
-        <Panel title="Attendance Trend">
-          {attendance.length > 0 ? (
-            <ResponsiveContainer width="100%" height={200}>
-              <LineChart data={[...attendance].reverse()}>
-                <CartesianGrid strokeDasharray="3 3" stroke={C.border} />
-                <XAxis dataKey="date" tick={{ fill: C.textMuted, fontSize: 10 }} tickFormatter={d => d?.slice(5)} />
-                <YAxis tick={{ fill: C.textMuted, fontSize: 10 }} />
-                <Tooltip contentStyle={{ background: C.cardBg, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 12 }} />
-                <Line type="monotone" dataKey="count" stroke={C.navy} strokeWidth={2.5} dot={false} />
-              </LineChart>
-            </ResponsiveContainer>
-          ) : <EmptyState icon={<BarChart2 size={32} color={C.textMuted} />} title="No attendance data yet" description="Admin records attendance after each service." />}
-        </Panel>
-      </div>
-
-      {todayBirthdays.length > 0 && (
-        <Panel title={`Birthdays Today (${todayBirthdays.length})`}>
-          <DataTable
-            columns={[
-              { key: 'name', label: 'Member', render: (_, r) => <strong>{r.first_name} {r.last_name}</strong> },
-              { key: 'phone', label: 'Phone' },
-              { key: 'kdf_area', label: 'KDF Area', render: v => <Badge label={v} color={C.purple} /> },
-              { key: 'wish', label: '', render: (_, r) => <BirthdayWish member={r} /> },
-            ]}
-            rows={todayBirthdays}
-          />
-        </Panel>
-      )}
-
-      {preview && (
-        <Modal title={preview.title} onClose={() => setPreview(null)} width={460}>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <div style={{ color: C.textSecondary, fontSize: 13, lineHeight: 1.6 }}>{preview.description}</div>
-            {preview.details.map((item) => (
-              <div key={item.label} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '9px 10px', background: C.pageBg, borderRadius: 8, border: `1px solid ${C.border}` }}>
-                <span style={{ fontSize: 12, color: C.textMuted }}>{item.label}</span>
-                <strong style={{ fontSize: 14, color: C.navy }}>{item.value}</strong>
-              </div>
-            ))}
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 4 }}>
-              <Btn color={C.navy} onClick={() => { setPreview(null); setActiveTab?.(preview.tab); }}>
-                View Section
-              </Btn>
-            </div>
-          </div>
-        </Modal>
-      )}
-    </div>
-  );
-}
 
 function Growth() {
   const [members, setMembers] = useState([]);
   const [attendance, setAttendance] = useState([]);
+  const [chart, setChart] = useState('attendance');
   useEffect(() => { Promise.all([getMembers(), getAttendance()]).then(([m, a]) => { setMembers(m); setAttendance(a); }); }, []);
   const deptData = DEPARTMENTS.map(d => ({ name: d.name.split(' ')[0], members: members.filter(m => m.department === d.name).length }));
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       <Grid cols="repeat(auto-fit, minmax(160px, 1fr))">
-        <StatCard label="Total Members" value={members.length} icon={<Users size={18} />} color={C.gold} />
-        <StatCard label="New Converts" value={members.filter(m => m.status === 'New Convert').length} icon={<TrendingUp size={18} />} color={C.blue} />
-        <StatCard label="Active Members" value={members.filter(m => m.status === 'Active Member').length} icon={<CheckSquare size={18} />} color={C.success} />
+        <StatCard label="Total members" value={members.length} icon={<Users size={18} />} color={C.gold} />
+        <StatCard label="New converts" value={members.filter(m => m.status === 'New Convert').length} icon={<TrendingUp size={18} />} color={C.blue} />
+        <StatCard label="Active members" value={members.filter(m => m.status === 'Active Member').length} icon={<CheckSquare size={18} />} color={C.success} />
         <StatCard label="Workers" value={members.filter(m => m.status === 'Worker').length} icon={<Briefcase size={18} />} color={C.gold} />
-        <StatCard label="Services Recorded" value={attendance.length} icon={<Calendar size={18} />} color={C.purple} />
-        <StatCard label="Avg Attendance" value={attendance.length ? Math.round(attendance.reduce((a, b) => a + b.count, 0) / attendance.length) : 'N/A'} icon={<Activity size={18} />} color={C.danger} />
+        <StatCard label="Services recorded" value={attendance.length} icon={<Calendar size={18} />} color={C.purple} />
+        <StatCard label="Average attendance" value={attendance.length ? Math.round(attendance.reduce((a, b) => a + b.count, 0) / attendance.length) : 'N/A'} icon={<Activity size={18} />} color={C.danger} />
       </Grid>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-        <Panel title="Attendance History">
-          {attendance.length > 0 ? (
+      <Panel title={chart === 'attendance' ? 'Attendance history' : 'Members by department'}
+        action={<FilterSelect placeholder="Chart" value={chart} onChange={value => setChart(value || 'attendance')}
+          options={[{ value: 'attendance', label: 'Attendance history' }, { value: 'members', label: 'Members by department' }]} />}>
+        {chart === 'attendance' ? (attendance.length > 0 ? (
             <ResponsiveContainer width="100%" height={220}>
               <LineChart data={[...attendance].reverse()}>
                 <CartesianGrid strokeDasharray="3 3" stroke={C.border} />
                 <XAxis dataKey="date" tick={{ fill: C.textMuted, fontSize: 10 }} tickFormatter={d => d?.slice(5)} />
                 <YAxis tick={{ fill: C.textMuted, fontSize: 10 }} />
                 <Tooltip contentStyle={{ background: C.cardBg, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 12 }} />
-                <Line type="monotone" dataKey="count" stroke={C.navy} strokeWidth={2.5} dot={{ fill: C.navy, r: 3 }} />
+                <Line type="monotone" dataKey="count" stroke="var(--accent-chart)" strokeWidth={2} dot={false} isAnimationActive={false} />
               </LineChart>
             </ResponsiveContainer>
-          ) : <EmptyState icon={<BarChart2 size={32} color={C.textMuted} />} title="No data yet" />}
-        </Panel>
-        <Panel title="Members by Department">
+        ) : <EmptyState icon={<BarChart2 size={32} color={C.textMuted} />} title="No attendance records yet" />) : (
           <ResponsiveContainer width="100%" height={220}>
             <BarChart data={deptData}>
               <CartesianGrid strokeDasharray="3 3" stroke={C.border} />
               <XAxis dataKey="name" tick={{ fill: C.textMuted, fontSize: 10 }} />
               <YAxis tick={{ fill: C.textMuted, fontSize: 10 }} />
               <Tooltip contentStyle={{ background: C.cardBg, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 12 }} />
-              <Bar dataKey="members" fill={C.blue} radius={[4, 4, 0, 0]} />
+              <Bar dataKey="members" fill="var(--accent-chart)" radius={[4, 4, 0, 0]} isAnimationActive={false} />
             </BarChart>
           </ResponsiveContainer>
-        </Panel>
-      </div>
+        )}
+      </Panel>
     </div>
   );
 }
@@ -317,7 +148,7 @@ function StaffMonitor() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       <Alert type="info" message="All staff activities are tracked here for full accountability across every level of the church." />
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 14 }}>
+      <div className="sicc-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 14 }}>
         {staff.length === 0 && <EmptyState icon={<Users size={32} color={C.textMuted} />} title="No staff yet" description="Admin creates staff accounts in User Management." />}
         {staff.map(s => {
           const color = ROLE_COLORS[s.role] || C.blue;
@@ -346,9 +177,9 @@ function StaffMonitor() {
                 </div>
               )}
               {s.department && <InfoRow icon={<Building2 size={13} />} label="Department" value={s.department} />}
-              {s.kdf_area && <InfoRow icon={<MapPin size={13} />} label="KDF Area" value={s.kdf_area} />}
+              {s.kdf_area && <InfoRow icon={<MapPin size={13} />} label="KDF area" value={s.kdf_area} />}
               <div style={{ borderTop: `0.5px solid ${C.border}`, paddingTop: 10, marginTop: 8 }}>
-                <div style={{ fontSize: 10, color: C.textMuted, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>Recent Activity</div>
+                <div style={{ fontSize: 10, color: C.textMuted, marginBottom: 6 }}>Recent activity</div>
                 {staffLogs.length === 0
                   ? <div style={{ fontSize: 12, color: C.textMuted }}>No activity yet.</div>
                   : staffLogs.map((l, i) => <div key={i} style={{ fontSize: 12, color: C.textSecondary, padding: '2px 0' }}>• {l.action}: {l.detail}</div>)}
@@ -377,7 +208,7 @@ function Members() {
           columns={[
             { key: 'name', label: 'Name', render: (_, r) => <strong style={{ color: C.textPrimary }}>{r.first_name} {r.last_name}</strong> },
             { key: 'phone', label: 'Phone' },
-            { key: 'kdf_area', label: 'KDF Area', render: v => <Badge label={v} color={C.purple} /> },
+            { key: 'kdf_area', label: 'KDF area', render: v => <Badge label={v} color={C.purple} /> },
             { key: 'department', label: 'Department', render: v => v || 'N/A' },
             { key: 'status', label: 'Status', render: v => <StatusBadge status={v} /> },
             { key: 'date_of_birth', label: 'DOB', render: v => v || 'N/A' },
@@ -396,7 +227,7 @@ function KDFView() {
   useEffect(() => { getMembers().then(setMembers); }, []);
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(270px, 1fr))', gap: 12 }}>
+      <div className="sicc-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(270px, 1fr))', gap: 12 }}>
         {KDF_AREAS.map(k => {
           const count = members.filter(m => m.kdf_area === k.name).length;
           return (
@@ -437,14 +268,14 @@ function DeptView() {
   const [profiles, setProfiles] = useState([]);
   useEffect(() => { Promise.all([getMembers(), getProfiles()]).then(([m, p]) => { setMembers(m); setProfiles(p); }); }, []);
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 12 }}>
+    <div className="sicc-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(240px, 1fr))', gap: 12 }}>
       {DEPARTMENTS.map(d => {
         const count = members.filter(m => m.department === d.name).length;
         const leader = profiles.find(p => p.role === ROLES.DEPARTMENT_LEADER && p.department === d.name);
         return (
-          <Panel key={d.id} style={{ borderTop: `3px solid ${d.color}` }}>
+          <Panel key={d.id}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-              <Building2 size={18} color={d.color} />
+              <Building2 size={20} strokeWidth={1.75} color="var(--accent-ink)" aria-hidden="true" />
               <div style={{ fontSize: 14, fontWeight: 500, color: C.textPrimary }}>{d.name}</div>
             </div>
             <div style={{ fontSize: 12, color: C.textSecondary, marginBottom: 8, lineHeight: 1.6 }}>
@@ -458,7 +289,7 @@ function DeptView() {
             <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 10 }}>
               Portal account: <strong style={{ color: leader ? C.navy : C.textMuted }}>{leader?.name || 'Not assigned'}</strong>
             </div>
-            <Badge label={`${count} members`} color={d.color} />
+            <Badge label={`${count} members`} />
           </Panel>
         );
       })}
@@ -484,18 +315,18 @@ function FollowUps() {
       <Grid cols="repeat(auto-fit, minmax(150px, 1fr))">
         <StatCard label="Total Reports" value={followUps.length} icon={<Phone size={18} />} color={C.blue} />
         <StatCard label="Completed" value={followUps.filter(f => f.status === 'Completed').length} icon={<CheckSquare size={18} />} color={C.success} />
-        <StatCard label="In Progress" value={followUps.filter(f => f.status === 'In Progress').length} icon={<Activity size={18} />} color={C.warning} />
-        <StatCard label="No Response" value={followUps.filter(f => f.status === 'No Response').length} icon={<MessageSquare size={18} />} color={C.danger} />
+        <StatCard label="In progress" value={followUps.filter(f => f.status === 'In Progress').length} icon={<Activity size={18} />} color={C.warning} />
+        <StatCard label="No response" value={followUps.filter(f => f.status === 'No Response').length} icon={<MessageSquare size={18} />} color={C.danger} />
       </Grid>
       {byPastor.length > 0 && (
         <Panel title="Pastor Follow-Up Accountability">
-          <DataTable columns={[{ key: 'name', label: 'Pastor' }, { key: 'total', label: 'Total', render: v => <Badge label={v} color={C.blue} /> }, { key: 'completed', label: 'Completed', render: v => <Badge label={v} color={C.success} /> }, { key: 'inProgress', label: 'In Progress', render: v => <Badge label={v} color={C.warning} /> }, { key: 'noResponse', label: 'No Response', render: v => <Badge label={v} color={C.danger} /> }]} rows={byPastor} emptyText="No pastors yet." />
+          <DataTable columns={[{ key: 'name', label: 'Pastor' }, { key: 'total', label: 'Total', render: v => <Badge label={v} color={C.blue} /> }, { key: 'completed', label: 'Completed', render: v => <Badge label={v} color={C.success} /> }, { key: 'inProgress', label: 'In progress', render: v => <Badge label={v} color={C.warning} /> }, { key: 'noResponse', label: 'No response', render: v => <Badge label={v} color={C.danger} /> }]} rows={byPastor} emptyText="No pastors yet." />
         </Panel>
       )}
       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
         <div style={{ flex: 1, minWidth: 200 }}><SearchInput value={search} onChange={setSearch} placeholder="Search member, pastor, notes..." /></div>
-        <FilterSelect value={filterPastor} onChange={setFilterPastor} options={pastors.map(p => ({ value: p.name, label: p.name }))} placeholder="All Pastors" />
-        <FilterSelect value={filterStatus} onChange={setFilterStatus} options={['In Progress', 'Completed', 'No Response'].map(s => ({ value: s, label: s }))} placeholder="All Statuses" />
+        <FilterSelect value={filterPastor} onChange={setFilterPastor} options={pastors.map(p => ({ value: p.name, label: p.name }))} placeholder="All pastors" />
+        <FilterSelect value={filterStatus} onChange={setFilterStatus} options={['In Progress', 'Completed', 'No Response'].map(s => ({ value: s, label: s }))} placeholder="All statuses" />
         <Badge label={`${filtered.length} reports`} color={C.gold} />
       </div>
       <Panel title="All Follow-Up Reports">
@@ -519,9 +350,9 @@ function FollowUps() {
           <InfoRow icon={<Calendar size={14} />} label="Date" value={selected.date} />
           <InfoRow icon={<Phone size={14} />} label="Method" value={selected.method} />
           <InfoRow icon={<Activity size={14} />} label="Status" value={selected.status} />
-          <div style={{ marginTop: 14 }}><div style={{ fontSize: 11, color: C.textMuted, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>Notes</div><div style={{ fontSize: 13, color: C.textPrimary, background: C.pageBg, borderRadius: 8, padding: 12, lineHeight: 1.7 }}>{selected.notes}</div></div>
-          {selected.outcome && <div style={{ marginTop: 12 }}><div style={{ fontSize: 11, color: C.textMuted, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 6 }}>Outcome</div><div style={{ fontSize: 13, color: C.textPrimary, background: C.pageBg, borderRadius: 8, padding: 12, lineHeight: 1.7 }}>{selected.outcome}</div></div>}
-          {(() => { const m = members.find(m => m.id === selected.member_id); return m ? (<div style={{ marginTop: 14, borderTop: `0.5px solid ${C.border}`, paddingTop: 14 }}><SectionTitle>Member Profile</SectionTitle><InfoRow icon={<MapPin size={13} />} label="KDF Area" value={m.kdf_area} color={C.purple} /><InfoRow icon={<Building2 size={13} />} label="Department" value={m.department} /><InfoRow icon={<Star size={13} />} label="Spiritual Status" value={m.spiritual_status} /><InfoRow icon={<Phone size={13} />} label="Phone" value={m.phone} /></div>) : null; })()}
+          <div style={{ marginTop: 14 }}><div style={{ fontSize: 11, color: C.textMuted, marginBottom: 6 }}>Notes</div><div style={{ fontSize: 13, color: C.textPrimary, background: C.pageBg, borderRadius: 8, padding: 12, lineHeight: 1.7 }}>{selected.notes}</div></div>
+          {selected.outcome && <div style={{ marginTop: 12 }}><div style={{ fontSize: 11, color: C.textMuted, marginBottom: 6 }}>Outcome</div><div style={{ fontSize: 13, color: C.textPrimary, background: C.pageBg, borderRadius: 8, padding: 12, lineHeight: 1.7 }}>{selected.outcome}</div></div>}
+          {(() => { const m = members.find(m => m.id === selected.member_id); return m ? (<div style={{ marginTop: 14, borderTop: `0.5px solid ${C.border}`, paddingTop: 14 }}><SectionTitle>Member Profile</SectionTitle><InfoRow icon={<MapPin size={13} />} label="KDF area" value={m.kdf_area} color={C.purple} /><InfoRow icon={<Building2 size={13} />} label="Department" value={m.department} /><InfoRow icon={<Star size={13} />} label="Spiritual status" value={m.spiritual_status} /><InfoRow icon={<Phone size={13} />} label="Phone" value={m.phone} /></div>) : null; })()}
         </Modal>
       )}
     </div>
@@ -562,14 +393,14 @@ function Communication() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       {alert && <Alert type={alert.type} message={alert.msg} onDismiss={() => setAlert(null)} />}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+      <div className="sicc-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
         <Panel title="SMS Broadcast">
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             <div style={{ fontSize: 13, color: C.textSecondary }}>
               Recipients: <strong style={{ color: C.textPrimary }}>{recipients} members</strong>
               {!status.sms && <span style={{ color: C.danger, marginLeft: 8, fontSize: 12 }}>SMS not set up</span>}
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: audience.kind === 'all' ? '1fr' : '1fr 1fr', gap: 10 }}>
+            <div className="sicc-grid" style={{ display: 'grid', gridTemplateColumns: audience.kind === 'all' ? '1fr' : '1fr 1fr', gap: 10 }}>
               <Select label="Send to" value={audience.kind} onChange={v => setAudience({ kind: v || 'all', value: '' })} placeholder="All members" options={[{ value: 'all', label: 'All members' }, { value: 'department', label: 'A department' }, { value: 'kdf_area', label: 'A KDF area' }]} />
               {audience.kind === 'department' && <Select label="Department" value={audience.value} onChange={v => setAudience({ ...audience, value: v })} options={DEPARTMENTS.map(d => d.name)} />}
               {audience.kind === 'kdf_area' && <Select label="KDF area" value={audience.value} onChange={v => setAudience({ ...audience, value: v })} options={KDF_AREAS.map(k => k.name)} />}
@@ -577,14 +408,14 @@ function Communication() {
             <Textarea value={msg} onChange={setMsg} placeholder="Type your broadcast message..." rows={5} />
             <div style={{ display: 'flex', gap: 8 }}>
               <Btn onClick={sendSMS} color={C.success} loading={sending} disabled={!msg.trim()}><Send size={14} /> Send SMS</Btn>
-              <Btn onClick={() => window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank')} color="#25D366" variant="outline"><MessageSquare size={14} /> WhatsApp</Btn>
+              <Btn onClick={() => window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank')} color={C.navy} variant="outline"><MessageSquare size={14} /> WhatsApp</Btn>
             </div>
           </div>
         </Panel>
         <Panel title="Quick Message Templates">
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {quickMsgs.map((q, i) => (
-              <button key={i} onClick={() => setMsg(q.text)} style={{ padding: '11px 14px', background: C.pageBg, border: `1px solid ${C.border}`, borderRadius: 9, color: C.textPrimary, fontSize: 13, cursor: 'pointer', textAlign: 'left', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 10, transition: 'all 0.15s' }}
+              <button key={i} onClick={() => setMsg(q.text)} style={{ padding: '11px 14px', background: C.pageBg, border: `1px solid ${C.border}`, borderRadius: 9, color: C.textPrimary, fontSize: 13, cursor: 'pointer', textAlign: 'left', display: 'flex', alignItems: 'center', gap: 10, transition: 'all 0.15s' }}
                 onMouseEnter={e => { e.currentTarget.style.background = C.blueLight; e.currentTarget.style.borderColor = C.blue; }}
                 onMouseLeave={e => { e.currentTarget.style.background = C.pageBg; e.currentTarget.style.borderColor = C.border; }}>
                 <span style={{ color: C.blue, flexShrink: 0 }}>{q.icon}</span>
@@ -606,16 +437,16 @@ function Reports() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       <Grid cols="repeat(auto-fit, minmax(150px, 1fr))">
-        <StatCard label="Total Members" value={members.length} icon={<ClipboardList size={18} />} color={C.gold} />
-        <StatCard label="New Converts" value={members.filter(m => m.status === 'New Convert').length} icon={<TrendingUp size={18} />} color={C.blue} />
-        <StatCard label="Active Members" value={members.filter(m => m.status === 'Active Member').length} icon={<CheckSquare size={18} />} color={C.success} />
+        <StatCard label="Total members" value={members.length} icon={<ClipboardList size={18} />} color={C.gold} />
+        <StatCard label="New converts" value={members.filter(m => m.status === 'New Convert').length} icon={<TrendingUp size={18} />} color={C.blue} />
+        <StatCard label="Active members" value={members.filter(m => m.status === 'Active Member').length} icon={<CheckSquare size={18} />} color={C.success} />
         <StatCard label="Workers" value={members.filter(m => m.status === 'Worker').length} icon={<Briefcase size={18} />} color={C.gold} />
         <StatCard label="Follow-Ups" value={followUps.length} icon={<Phone size={18} />} color={C.purple} />
       </Grid>
-      <Panel title="KDF Area Breakdown">
+      <details className="sicc-disclosure"><summary>KDF area breakdown</summary>
         <DataTable columns={[{ key: 'name', label: 'Area' }, { key: 'coordinator', label: 'Coordinator' }, { key: 'count', label: 'Members', render: v => <Badge label={v} color={C.purple} /> }]} rows={KDF_AREAS.map(k => ({ ...k, count: members.filter(m => m.kdf_area === k.name).length }))} />
-      </Panel>
-      <Panel title="Attendance Records">
+      </details>
+      <Panel title="Attendance records">
         <DataTable columns={[{ key: 'date', label: 'Date' }, { key: 'service', label: 'Service' }, { key: 'count', label: 'Count', render: v => <strong style={{ color: C.navy, fontSize: 15 }}>{v}</strong> }]} rows={attendance} emptyText="No attendance records yet." />
       </Panel>
     </div>
@@ -645,7 +476,7 @@ function Assignments() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       <Panel title="Create Assignment">
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
+        <div className="sicc-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
           <Input label="Task Description *" value={form.task} onChange={v => setForm({ ...form, task: v })} placeholder="Describe the assignment..." required />
           <Select label="Assign To *" value={form.assignee} onChange={v => setForm({ ...form, assignee: v })} options={staff.map(s => ({ value: s.name, label: s.name }))} required />
           <Select label="Priority" value={form.priority} onChange={v => setForm({ ...form, priority: v })} options={['Normal', 'Urgent', 'High Priority']} />

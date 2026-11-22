@@ -1,6 +1,7 @@
 // Theme tokens. `C` is intentionally a mutable object: existing components read C.* while rendering,
 // so switching palettes and re-mounting the tree restyles every screen without touching each one.
 const base = {
+  qrDark: '#0C1B3A', qrLight: '#FFFFFF',
   gold: '#C9A84C', goldLight: '#E8C96A', goldDark: '#A07828', goldText: '#8A6A1F',
   warning: '#B34700', warningBg: '#FFF3E0',
   success: '#2E7D32', successBg: '#EAF3DE',

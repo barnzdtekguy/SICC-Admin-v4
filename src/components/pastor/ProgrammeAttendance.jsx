@@ -29,12 +29,12 @@ function getCheckInBaseUrl() {
 function ProjectorMode({ name, qrImage, secondsLeft, count, onClose }) {
   useEffect(() => { const k = e => e.key === 'Escape' && onClose(); document.addEventListener('keydown', k); return () => document.removeEventListener('keydown', k); }, [onClose]);
   return (
-    <div role="dialog" aria-modal="true" aria-label="Check-in QR for projector" style={{ position: 'fixed', inset: 0, zIndex: 2500, background: '#0C1B3A', color: '#fff', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 'clamp(10px, 2.5vh, 26px)', padding: 20, textAlign: 'center' }}>
-      <button type="button" onClick={onClose} aria-label="Exit projector mode" style={{ position: 'absolute', top: 16, right: 16, background: 'rgba(255,255,255,.12)', border: 'none', color: '#fff', borderRadius: 10, padding: '10px 14px', fontSize: 14 }}>Exit (Esc)</button>
+    <div role="dialog" aria-modal="true" aria-label="Check-in QR for projector" style={{ position: 'fixed', inset: 0, zIndex: 2500, background: C.qrDark, color: 'var(--nav-ink)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 'clamp(10px, 2.5vh, 26px)', padding: 20, textAlign: 'center' }}>
+      <button type="button" onClick={onClose} aria-label="Exit projector mode" style={{ position: 'absolute', top: 16, right: 16, background: 'var(--nav-hover)', border: 'none', color: 'var(--nav-ink)', borderRadius: 10, padding: '10px 14px', fontSize: 14 }}>Exit (Esc)</button>
       <div className="display" style={{ fontSize: 'clamp(28px, 6vh, 56px)', lineHeight: 1.1 }}>{name}</div>
-      <div style={{ fontSize: 'clamp(16px, 3vh, 26px)', color: '#E8C96A' }}>Scan with your phone camera to check in</div>
-      {qrImage && <img src={qrImage} alt="Check-in QR code" style={{ width: 'min(62vh, 86vw)', height: 'min(62vh, 86vw)', background: '#fff', borderRadius: 24, padding: 8 }} />}
-      <div style={{ fontSize: 'clamp(14px, 2.4vh, 22px)', color: 'rgba(255,255,255,.8)' }}>Code refreshes in <strong className="num">{secondsLeft}s</strong> · <strong className="num">{count}</strong> checked in</div>
+      <div style={{ fontSize: 'clamp(16px, 3vh, 26px)', color: C.goldLight }}>Scan with your phone camera to check in</div>
+      {qrImage && <img src={qrImage} alt="Check-in QR code" style={{ width: 'min(62vh, 86vw)', height: 'min(62vh, 86vw)', background: C.qrLight, borderRadius: 24, padding: 8 }} />}
+      <div style={{ fontSize: 'clamp(14px, 2.4vh, 22px)', color: 'var(--nav-muted)' }}>Code refreshes in <strong className="num">{secondsLeft}s</strong> · <strong className="num">{count}</strong> checked in</div>
     </div>
   );
 }
@@ -87,7 +87,7 @@ export default function ProgrammeAttendance() {
     setQrImage('');
     if (!token || !checkInUrl) return;
     let current = true;
-    QRCode.toDataURL(checkInUrl, { width: 720, margin: 2, errorCorrectionLevel: 'M', color: { dark: '#0C1B3A', light: '#FFFFFF' } })
+    QRCode.toDataURL(checkInUrl, { width: 720, margin: 2, errorCorrectionLevel: 'M', color: { dark: C.qrDark, light: C.qrLight } })
       .then(image => { if (current) setQrImage(image); })
       .catch(() => { if (current) setQrImage(''); });
     return () => { current = false; };
@@ -191,7 +191,7 @@ export default function ProgrammeAttendance() {
             {selectedDate !== TODAY && <Alert type="warning" message="Self check-in only works for today's date. Set the date to today." />}
             <div style={{ border: `1px solid ${C.border}`, borderRadius: 10, padding: 14, background: C.pageBg, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
               {qrImage
-                ? <img src={qrImage} alt="Attendance QR code. It refreshes every minute." style={{ width: '100%', maxWidth: 280, aspectRatio: '1 / 1', objectFit: 'contain', background: '#fff', borderRadius: 8 }} />
+                ? <img src={qrImage} alt="Attendance QR code. It refreshes every minute." style={{ width: '100%', maxWidth: 280, aspectRatio: '1 / 1', objectFit: 'contain', background: C.qrLight, borderRadius: 8 }} />
                 : <Skeleton w={260} h={260} />}
               <div style={{ fontSize: 12, color: C.textSecondary }} aria-live="off">New code in <strong className="num">{secondsLeft}s</strong>. Show it on a screen in the room.</div>
             </div>
@@ -247,7 +247,7 @@ export default function ProgrammeAttendance() {
               { value: 'custom', label: 'Custom Programme' },
               { value: 'department', label: 'Department Programme' },
             ]} />
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 120px', gap: 10 }}>
+            <div className="sicc-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 120px', gap: 10 }}>
               <Input label="Start Date" type="date" value={newProgramme.start_date} onChange={v => setNewProgramme({ ...newProgramme, start_date: v })} />
               <Input label="End Date" type="date" value={newProgramme.end_date} onChange={v => setNewProgramme({ ...newProgramme, end_date: v })} />
               <Input label="Days" type="number" value={newProgramme.total_days} onChange={v => setNewProgramme({ ...newProgramme, total_days: v })} />
@@ -342,7 +342,7 @@ export function PublicAttendanceCheckIn() {
   };
 
   return (
-    <div style={{ minHeight: '100vh', background: C.pageBg, fontFamily: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif', padding: '24px 14px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+    <div style={{ minHeight: '100vh', background: C.pageBg, padding: '24px 14px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
       <div style={{ width: '100%', maxWidth: 520 }}>
         <div style={{ textAlign: 'center', marginBottom: 18 }}>
           <img src="/salem-logo.png" alt="Salem" style={{ width: 64, height: 64, objectFit: 'contain', marginBottom: 10 }} />
@@ -358,7 +358,7 @@ export function PublicAttendanceCheckIn() {
           {programme && stage === 'lookup' && (
             <form onSubmit={handleLookup} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               <Input label="Full Name" value={lookup.name} onChange={v => setLookup({ ...lookup, name: v })} placeholder="Enter your name" />
-              <Input label="Phone Number" value={lookup.phone} onChange={v => setLookup({ ...lookup, phone: v })} placeholder="08XXXXXXXXX" />
+              <Input label="Phone number" value={lookup.phone} onChange={v => setLookup({ ...lookup, phone: v })} placeholder="08XXXXXXXXX" />
               <Btn type="submit" color={C.navy} size="lg">Continue</Btn>
             </form>
           )}

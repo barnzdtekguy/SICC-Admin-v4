@@ -1,11 +1,12 @@
 // src/components/kdf/KDFDashboard.jsx
-import { useState, useEffect } from 'react';
+import { useCallback, useState, useEffect } from 'react';
 import { useAuth } from '../../hooks/useAuth';
-import { StatCard, Panel, Badge, DataTable, Btn, Modal, Select, Textarea, SearchInput, C, Alert, Grid, StatusBadge, FilterSelect, InfoRow, SectionTitle, EmptyState } from '../shared/UI';
-import { getMembers, getFollowUps, createFollowUp, addLog, submitReport } from '../../lib/db';
+import RoleHome, { useHomeData } from '../shared/RoleHome';
+import { StatCard, Panel, Badge, DataTable, Btn, Modal, Select, Textarea, SearchInput, C, Alert, Grid, StatusBadge, FilterSelect } from '../shared/UI';
+import { getBrief, getMembers, getFollowUps, createFollowUp, addLog, submitReport } from '../../lib/db';
 import { useToast } from '../shared/Toast';
 import { KDF_AREAS, FOLLOWUP_METHODS, FOLLOWUP_STATUSES, MEMBER_STATUSES } from '../../data/constants';
-import { Users, Star, CheckSquare, Phone, Activity, MessageSquare, MapPin, Building2, Briefcase } from 'lucide-react';
+import { Users, Star, CheckSquare, Phone, Activity, Briefcase } from 'lucide-react';
 
 export default function KDFDashboard({ activeTab }) {
   const map = { overview: Overview, kdfMembers: KDFMembers, followup: FollowUp, reports: Reports };
@@ -15,53 +16,44 @@ export default function KDFDashboard({ activeTab }) {
 
 function Overview() {
   const { profile } = useAuth();
-  const myArea = profile?.kdf_area;
-  const areaData = KDF_AREAS.find(k => k.name === myArea);
-  const [members, setMembers] = useState([]);
-  useEffect(() => { getMembers({ kdfArea: myArea }).then(setMembers); }, [myArea]);
-
+  const area = profile.kdf_area;
+  const areaData = KDF_AREAS.find(item => item.name === area);
+  const load = useCallback(() => ({ brief: getBrief(), members: getMembers({ kdfArea: area }) }), [area]);
+  const { data, reload } = useHomeData(load);
+  const { brief, members } = data || {};
+  const statuses = ['Active Member', 'Worker', 'New Convert', 'Evangelism Contact'];
+  const bars = members?.length ? statuses.map(status => ({
+    label: status, value: members.filter(member => member.status === status).length,
+  })) : [];
+  const rows = [];
+  if (brief?.overdueFollowUps > 0) {
+    rows.push({ title: 'Overdue follow-ups', detail: `${brief.overdueFollowUps} to review`, to: '/app/followup', Icon: Phone });
+  }
+  if (areaData?.assistantCoordinator) {
+    rows.push({ title: areaData.assistantCoordinator, detail: ['Assistant coordinator', areaData.assistantPhone].filter(Boolean).join(' · '), Icon: Users });
+  }
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-      <div style={{ background: `linear-gradient(135deg, ${C.danger}10, ${C.purple}08)`, border: `1px solid ${C.danger}25`, borderRadius: 14, padding: '18px 22px' }}>
-        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
-          <div>
-            <div style={{ fontSize: 18, fontWeight: 500, color: C.textPrimary, display: 'flex', alignItems: 'center', gap: 8 }}><MapPin size={18} color={C.danger} /> {myArea}</div>
-            <div style={{ fontSize: 13, color: C.textSecondary, marginTop: 2 }}>KDF Area Coordinator: {profile?.name}</div>
-            <div style={{ fontSize: 12, color: C.textMuted, marginTop: 2 }}>Your activities are visible to Bishop and Admin.</div>
-          </div>
-          <Badge label={`${members.length} members`} color={C.danger} />
-        </div>
-        {areaData?.assistantCoordinator && (
-          <div style={{ marginTop: 12, padding: '9px 13px', background: 'rgba(255,255,255,0.7)', borderRadius: 8, fontSize: 12, color: C.textSecondary, border: `0.5px solid ${C.border}` }}>
-            Assistant Coordinator: <strong style={{ color: C.navy }}>{areaData.assistantCoordinator}</strong>
-            {areaData.assistantPhone && <span style={{ marginLeft: 8, color: C.textMuted }}>· {areaData.assistantPhone}</span>}
-          </div>
-        )}
-      </div>
-
-      <Grid cols="repeat(auto-fit, minmax(160px, 1fr))">
-        <StatCard label="Area Members" value={members.length} icon={<MapPin size={18} />} color={C.danger} />
-        <StatCard label="New Converts" value={members.filter(m => m.status === 'New Convert').length} icon={<Star size={18} />} color={C.blue} sub="Need follow-up" />
-        <StatCard label="Active Members" value={members.filter(m => m.status === 'Active Member').length} icon={<CheckSquare size={18} />} color={C.success} />
-        <StatCard label="Workers" value={members.filter(m => m.status === 'Worker').length} icon={<Briefcase size={18} />} color={C.gold} />
-      </Grid>
-
-      <Panel title={`Members in ${myArea}`}>
-        <DataTable
-          columns={[
-            { key: 'name', label: 'Name', render: (_, r) => <strong style={{ color: C.textPrimary }}>{r.first_name} {r.last_name}</strong> },
-            { key: 'phone', label: 'Phone' },
-            { key: 'department', label: 'Department', render: v => v || 'N/A' },
-            { key: 'status', label: 'Status', render: v => <StatusBadge status={v} /> },
-            { key: 'follow_up_count', label: 'Follow-Ups', render: v => <Badge label={v || 0} color={C.gold} /> },
-          ]}
-          rows={members}
-          emptyText="No members assigned to this area yet."
-        />
-      </Panel>
-    </div>
+    <RoleHome
+      hero={{ label: 'Area members', value: brief?.members ?? members?.length, note: area,
+        action: { label: 'View follow-ups', to: '/app/followup', Icon: Phone } }}
+      stats={[
+        { label: 'New converts', value: brief?.newConverts ?? members?.filter(member => member.status === 'New Convert').length, to: '/app/kdfMembers' },
+        { label: 'Active members', value: members?.filter(member => member.status === 'Active Member').length },
+        { label: 'Workers', value: members?.filter(member => member.status === 'Worker').length },
+        { label: 'Contacted in 30 days', value: brief?.coveragePct, suffix: '%', to: '/app/reports' },
+      ]}
+      chart={{ title: 'Membership by status', bars, to: '/app/reports', unit: 'members' }}
+      attention={{ rows, to: '/app/followup', empty: brief ? undefined : 'Follow-up reminders are unavailable.' }}
+      shortcuts={[
+        { label: 'Members', to: '/app/kdfMembers', Icon: Users },
+        { label: 'Follow-up', to: '/app/followup', Icon: Phone },
+        { label: 'Reports', to: '/app/reports', Icon: Briefcase },
+      ]}
+      loading={!data} error={data?.error} onRetry={reload}
+    />
   );
 }
+
 
 function KDFMembers() {
   const { profile } = useAuth();
@@ -78,8 +70,8 @@ function KDFMembers() {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
         <div style={{ flex: 1, minWidth: 200 }}><SearchInput value={search} onChange={setSearch} placeholder={`Search ${myArea} members...`} /></div>
-        <FilterSelect value={filter} onChange={setFilter} options={MEMBER_STATUSES.map(s => ({ value: s, label: s }))} placeholder="All Statuses" />
-        <Badge label={`${filtered.length} of ${members.length}`} color={C.danger} />
+        <FilterSelect value={filter} onChange={setFilter} options={MEMBER_STATUSES.map(s => ({ value: s, label: s }))} placeholder="All statuses" />
+        <Badge label={`${filtered.length} of ${members.length}`} />
       </div>
       <Panel>
         <DataTable onRowClick={r => window.dispatchEvent(new CustomEvent('sicc:open-member', { detail: r.id }))}
@@ -154,7 +146,7 @@ function FollowUp() {
         <Grid cols="repeat(3, 1fr)" gap={12}>
           <StatCard label="Total Follow-Ups" value={followUps.length} icon={<Phone size={18} />} color={C.danger} />
           <StatCard label="Completed" value={followUps.filter(f => f.status === 'Completed').length} icon={<CheckSquare size={18} />} color={C.success} />
-          <StatCard label="In Progress" value={followUps.filter(f => f.status === 'In Progress').length} icon={<Activity size={18} />} color={C.warning} />
+          <StatCard label="In progress" value={followUps.filter(f => f.status === 'In Progress').length} icon={<Activity size={18} />} color={C.warning} />
         </Grid>
         <Btn onClick={() => setShowModal(true)} color={C.navy}><Phone size={14} /> Log Follow-Up</Btn>
       </div>
@@ -230,7 +222,7 @@ function Reports() {
         </Grid>
       </div>
       {deptBreakdown.length > 0 && (
-        <Panel title="Members by Department">
+        <Panel title="Members by department">
           <DataTable columns={[{ key: 'dept', label: 'Department' }, { key: 'count', label: 'Count', render: v => <Badge label={v} color={C.purple} /> }]} rows={deptBreakdown} />
         </Panel>
       )}

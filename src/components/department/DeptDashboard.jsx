@@ -1,12 +1,13 @@
 // src/components/department/DeptDashboard.jsx
-import { useState, useEffect } from 'react';
+import { useCallback, useState, useEffect } from 'react';
 import { useAuth } from '../../hooks/useAuth';
-import { StatCard, Panel, Badge, DataTable, Btn, Modal, Input, Select, Textarea, SearchInput, C, Alert, Grid, StatusBadge, FilterSelect, EmptyState } from '../shared/UI';
-import { getMembers, getAttendance, createAttendance, submitReport } from '../../lib/db';
+import RoleHome, { attendanceBars, useHomeData } from '../shared/RoleHome';
+import { StatCard, Panel, Badge, DataTable, Btn, Modal, Input, Select, Textarea, SearchInput, C, Alert, Grid, StatusBadge, FilterSelect } from '../shared/UI';
+import { getBrief, getMembers, getAttendance, createAttendance, submitReport } from '../../lib/db';
 import { useToast } from '../shared/Toast';
 import AttendanceHistory from '../shared/AttendanceHistory';
 import { DEPARTMENTS, SERVICE_TYPES, MEMBER_STATUSES } from '../../data/constants';
-import { Users, CheckSquare, Star, Briefcase, Calendar, Activity, MapPin, Building2 } from 'lucide-react';
+import { Users, CheckSquare, Briefcase, Calendar, Activity } from 'lucide-react';
 
 export default function DeptDashboard({ activeTab }) {
   const map = { overview: Overview, deptMembers: DeptMembers, attendance: DeptAttendance, reports: Reports };
@@ -14,45 +15,68 @@ export default function DeptDashboard({ activeTab }) {
   return <Comp />;
 }
 
-function Overview() {
-  const { profile } = useAuth();
-  const myDept = profile?.department;
-  const dept = DEPARTMENTS.find(d => d.name === myDept);
-  const [members, setMembers] = useState([]);
-  useEffect(() => { getMembers({ department: myDept }).then(setMembers); }, [myDept]);
-
+function QuickAttendance({ brief, onSaved, onClose }) {
+  const toast = useToast();
+  const [service, setService] = useState('');
+  const [count, setCount] = useState('');
+  const [busy, setBusy] = useState(false);
+  const save = async event => {
+    event.preventDefault();
+    setBusy(true);
+    const date = brief?.today || new Date().toISOString().slice(0, 10);
+    const { data, error } = await createAttendance({ service, date, count: Number(count) });
+    setBusy(false);
+    if (error) { toast.error(error.message); return; }
+    toast.success(data?.queued ? 'Saved on this phone. It will send when you’re back online.' : `Recorded ${count} for ${service}.`);
+    onSaved();
+    onClose();
+  };
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-      <div style={{ background: `linear-gradient(135deg, ${dept?.color || C.purple}12, ${dept?.color || C.purple}04)`, border: `1px solid ${dept?.color || C.purple}25`, borderRadius: 14, padding: '18px 22px', display: 'flex', alignItems: 'center', gap: 16 }}>
-        <Building2 size={36} color={dept?.color || C.purple} />
-        <div>
-          <div style={{ fontSize: 18, fontWeight: 500, color: C.textPrimary }}>{myDept}</div>
-          <div style={{ fontSize: 13, color: C.textSecondary, marginTop: 2 }}>Welcome, {profile?.name} · Department Leader</div>
-          <div style={{ fontSize: 12, color: C.textMuted, marginTop: 2 }}>Your activities are visible to Bishop and Admin.</div>
-        </div>
-      </div>
-      <Grid cols="repeat(auto-fit, minmax(160px, 1fr))">
-        <StatCard label="Dept Members" value={members.length} icon={<Users size={18} />} color={dept?.color || C.purple} />
-        <StatCard label="Workers" value={members.filter(m => m.status === 'Worker').length} icon={<Briefcase size={18} />} color={C.gold} />
-        <StatCard label="Active Members" value={members.filter(m => m.status === 'Active Member').length} icon={<CheckSquare size={18} />} color={C.success} />
-        <StatCard label="New Converts" value={members.filter(m => m.status === 'New Convert').length} icon={<Star size={18} />} color={C.blue} />
-      </Grid>
-      <Panel title={`${myDept}: Member List`}>
-        <DataTable
-          columns={[
-            { key: 'name', label: 'Name', render: (_, r) => <strong style={{ color: C.textPrimary }}>{r.first_name} {r.last_name}</strong> },
-            { key: 'phone', label: 'Phone' },
-            { key: 'kdf_area', label: 'KDF Area', render: v => <Badge label={v} color={C.purple} /> },
-            { key: 'status', label: 'Status', render: v => <StatusBadge status={v} /> },
-            { key: 'spiritual_status', label: 'Spiritual Status' },
-          ]}
-          rows={members}
-          emptyText="No members in this department yet."
-        />
-      </Panel>
-    </div>
+    <Modal title="Record attendance" onClose={onClose}>
+      <form className="role-home-attendance-form" onSubmit={save}>
+        <Select label="Service" value={service} onChange={setService} required options={brief?.services?.length ? brief.services : SERVICE_TYPES} />
+        <Input label="Attendance count" type="number" value={count} onChange={setCount} inputMode="numeric" min={0} required />
+        <Btn type="submit" color={C.gold} loading={busy} disabled={!service || count === ''}>Save attendance</Btn>
+      </form>
+    </Modal>
   );
 }
+
+function Overview() {
+  const { profile } = useAuth();
+  const department = profile.department;
+  const load = useCallback(() => ({ brief: getBrief(), members: getMembers({ department }) }), [department]);
+  const { data, reload } = useHomeData(load);
+  const [recordOpen, setRecordOpen] = useState(false);
+  const { brief, members } = data || {};
+  const latest = brief?.recent?.at(-1);
+  const openRecord = () => setRecordOpen(true);
+  return (
+    <RoleHome
+      hero={{ label: 'Latest department attendance', value: latest?.dept_count ?? latest?.count,
+        note: [department, latest?.service].filter(Boolean).join(' · '),
+        action: { label: 'Record attendance', onClick: openRecord, Icon: CheckSquare } }}
+      stats={[
+        { label: 'Department members', value: brief?.members ?? members?.length, to: '/app/deptMembers' },
+        { label: 'Workers', value: members?.filter(member => member.status === 'Worker').length },
+        { label: 'Active members', value: members?.filter(member => member.status === 'Active Member').length },
+        { label: 'New converts', value: members?.filter(member => member.status === 'New Convert').length },
+      ]}
+      chart={{ title: 'Recent department attendance', bars: attendanceBars(brief?.recent, { department: true }), to: '/app/attendance', unit: 'attendees' }}
+      attention={{ rows: brief?.recordedThisWeek === false ? [
+        { title: 'Attendance due', detail: 'This week’s record is still open.', onClick: openRecord, Icon: Calendar },
+      ] : [], to: '/app/attendance', empty: brief ? 'Attendance is recorded for this week.' : 'Attendance reminders are unavailable.' }}
+      shortcuts={[
+        { label: 'Members', to: '/app/deptMembers', Icon: Users },
+        { label: 'Attendance', to: '/app/attendance', Icon: CheckSquare },
+        { label: 'Reports', to: '/app/reports', Icon: Briefcase },
+      ]}
+      loading={!data} error={data?.error} onRetry={reload}>
+      {recordOpen && <QuickAttendance brief={brief} onSaved={reload} onClose={() => setRecordOpen(false)} />}
+    </RoleHome>
+  );
+}
+
 
 function DeptMembers() {
   const { profile } = useAuth();
@@ -69,7 +93,7 @@ function DeptMembers() {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
         <div style={{ flex: 1, minWidth: 200 }}><SearchInput value={search} onChange={setSearch} placeholder={`Search ${myDept} members...`} /></div>
-        <FilterSelect value={filter} onChange={setFilter} options={MEMBER_STATUSES.map(s => ({ value: s, label: s }))} placeholder="All Statuses" />
+        <FilterSelect value={filter} onChange={setFilter} options={MEMBER_STATUSES.map(s => ({ value: s, label: s }))} placeholder="All statuses" />
         <Badge label={`${filtered.length} members`} color={C.purple} />
       </div>
       <Panel>
@@ -78,7 +102,7 @@ function DeptMembers() {
             { key: 'name', label: 'Name', render: (_, r) => <strong style={{ color: C.textPrimary }}>{r.first_name} {r.last_name}</strong> },
             { key: 'phone', label: 'Phone' },
             { key: 'address', label: 'Address' },
-            { key: 'kdf_area', label: 'KDF Area', render: v => <Badge label={v} color={C.purple} /> },
+            { key: 'kdf_area', label: 'KDF area', render: v => <Badge label={v} color={C.purple} /> },
             { key: 'affinity_group', label: 'Affinity', render: v => v ? <Badge label={v} color={C.blue} /> : 'N/A' },
             { key: 'status', label: 'Status', render: v => <StatusBadge status={v} /> },
             { key: 'date_of_birth', label: 'DOB', render: v => v || 'N/A' },
@@ -136,7 +160,7 @@ function DeptAttendance() {
         <Modal title="Mark Department Attendance" onClose={() => setShowModal(false)}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
             <Input label="Date" value={form.date} onChange={v => setForm({ ...form, date: v })} type="date" required />
-            <Select label="Service Type" value={form.service} onChange={v => setForm({ ...form, service: v })} options={SERVICE_TYPES} />
+            <Select label="Service type" value={form.service} onChange={v => setForm({ ...form, service: v })} options={SERVICE_TYPES} />
             <Input label={`${myDept} Members Present`} value={form.dept_count} onChange={v => setForm({ ...form, dept_count: v })} type="number" placeholder="Number present" required />
             <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
               <Btn variant="outline" color={C.textSecondary} onClick={() => setShowModal(false)}>Cancel</Btn>

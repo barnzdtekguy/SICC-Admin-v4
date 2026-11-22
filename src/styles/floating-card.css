@@ -1,0 +1,186 @@
+.notification-bell { position: relative; }
+
+.notification-trigger, .floating-card-close {
+  display: grid;
+  position: relative;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  flex: 0 0 44px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--text);
+}
+.notification-trigger:hover, .floating-card-close:hover { background: var(--hover); }
+.notification-count {
+  display: grid;
+  position: absolute;
+  inset: 2px 1px auto auto;
+  place-items: center;
+  min-width: 17px;
+  height: 17px;
+  padding-inline: 3px;
+  border-radius: 10px;
+  background: var(--gold);
+  color: var(--navy-strong);
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.floating-card-layer {
+  position: fixed;
+  z-index: 1100;
+  top: var(--floating-top);
+  left: var(--floating-left);
+  width: var(--floating-width);
+}
+.floating-card-layer[data-upwards='true'] { top: auto; bottom: var(--floating-bottom); }
+.floating-card-layer::before {
+  content: '';
+  position: absolute;
+  z-index: 1;
+  top: -5px;
+  left: calc(var(--floating-arrow) - 5px);
+  width: 10px;
+  height: 10px;
+  transform: rotate(45deg);
+  background: var(--glass-solid);
+  border-inline-start: 1px solid var(--glass-border);
+  border-block-start: 1px solid var(--glass-border);
+  pointer-events: none;
+}
+.floating-card-layer[data-upwards='true']::before { top: auto; bottom: -5px; transform: rotate(225deg); }
+.floating-card-backdrop { display: none; }
+.floating-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  max-height: min(70dvh, 528px, var(--floating-available, 528px));
+  overflow: hidden;
+  border: 1px solid var(--glass-border);
+  border-radius: 20px;
+  background: var(--glass-solid);
+  color: var(--text);
+  box-shadow: var(--glass-shadow);
+  animation: floating-card-reveal var(--ui-motion);
+}
+@supports (backdrop-filter: blur(0)) {
+  .floating-card { background: var(--glass-fill); backdrop-filter: var(--glass-filter); }
+}
+@keyframes floating-card-reveal {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.floating-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 8px 4px 16px;
+  border-bottom: 1px solid var(--line);
+  touch-action: none;
+}
+.floating-card-header h2 { font-size: 16px; font-weight: 600; }
+.floating-card-content { overflow: auto; overscroll-behavior: contain; min-height: 0; }
+.floating-card-footer { border-top: 1px solid var(--line); padding: 0 16px; }
+
+.notification-list { list-style: none; }
+.notification-list li + li { border-top: 1px solid var(--line); }
+.notification-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  width: 100%;
+  min-height: 60px;
+  gap: 8px;
+  padding: 8px 16px;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  text-align: start;
+}
+.notification-row:hover { background: color-mix(in srgb, var(--hover) 68%, transparent); }
+.notification-row:focus-visible { outline-offset: -3px; }
+.notification-icon {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+}
+.notification-copy strong, .notification-detail {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.notification-copy strong { font-size: 14px; font-weight: 600; }
+.notification-detail, .notification-meta { color: var(--glass-muted); font-size: 12px; }
+.notification-row[aria-expanded='true'] .notification-detail { white-space: pre-wrap; overflow-wrap: anywhere; }
+.notification-meta { display: grid; gap: 4px; min-width: 28px; justify-items: end; align-self: start; }
+.notification-unread { width: 8px; height: 8px; border-radius: 50%; background: var(--accent-chart); }
+.notification-message { display: flex; gap: 8px; align-items: center; padding: 16px; color: var(--glass-muted); }
+.notification-message button, .notification-see-all {
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  color: var(--text);
+  background: transparent;
+  font-weight: 600;
+}
+.notification-see-all { width: 100%; }
+.notification-message button:hover, .notification-see-all:hover { text-decoration: underline; }
+
+.floating-card-actions { display: grid; }
+.floating-card-actions button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 8px 16px;
+  text-align: start;
+  color: var(--text);
+  font-size: 14px;
+  background: transparent;
+  border: 0;
+}
+.floating-card-actions button:hover { background: var(--hover); }
+.floating-card-actions button:focus-visible { outline-offset: -3px; }
+.floating-card-actions button[aria-current='page'], .floating-card-actions button[aria-pressed='true'] { color: var(--accent-ink); font-weight: 600; }
+.floating-card-actions button > span { flex: 1; overflow-wrap: anywhere; }
+.floating-card-actions button > svg { flex-shrink: 0; }
+.floating-card-account { padding: 8px 16px; border-bottom: 1px solid var(--line); overflow-wrap: anywhere; }
+.floating-card-account small { display: block; color: var(--glass-muted); font-size: 12px; }
+
+@media (max-width: 860px) {
+  body:has(.floating-card-layer) .app-main { overflow: hidden !important; }
+  .floating-card-layer, .floating-card-layer[data-upwards='true'] { inset: 0; width: auto; }
+  .floating-card-layer::before { display: none; }
+  .floating-card-backdrop { display: block; position: absolute; inset: 0; background: var(--floating-dim); touch-action: none; }
+  .floating-card {
+    position: absolute;
+    top: max(var(--floating-top, 76px), calc(env(safe-area-inset-top) + 52px));
+    left: max(12px, env(safe-area-inset-left));
+    right: max(12px, env(safe-area-inset-right));
+    max-height: min(70dvh, calc(100dvh - var(--floating-top, 76px) - env(safe-area-inset-bottom) - 12px));
+  }
+  .floating-card-sheet .floating-card {
+    top: auto;
+    left: max(0px, env(safe-area-inset-left));
+    right: max(0px, env(safe-area-inset-right));
+    bottom: 0;
+    max-height: 80dvh;
+    border-radius: 24px 24px 0 0;
+    padding-bottom: env(safe-area-inset-bottom);
+    animation-name: floating-sheet-reveal;
+  }
+}
+
+@keyframes floating-sheet-reveal {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
+}

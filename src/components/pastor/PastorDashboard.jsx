@@ -4,84 +4,14 @@ import { useAuth } from '../../hooks/useAuth';
 import { Checkbox, StatCard, Panel, Badge, DataTable, Btn, Modal, Input, Select, Textarea, SearchInput, C, Alert, Grid, StatusBadge, FilterSelect } from '../shared/UI';
 import { getMembers, createMember, getFollowUps, createFollowUp, addLog } from '../../lib/db';
 import { DEPARTMENTS, AFFINITY_GROUPS, MEMBER_STATUSES, SPIRITUAL_STATUSES, FOLLOWUP_METHODS, FOLLOWUP_STATUSES, matchKDFArea } from '../../data/constants';
-import { Users, Star, CheckSquare, Phone, ClipboardList, Activity, MapPin, UserPlus, TrendingUp, ChevronRight, BookOpen, HeartHandshake } from 'lucide-react';
+import { CheckSquare, Phone, Activity, MapPin, UserPlus } from 'lucide-react';
 import ProgrammeAttendance from './ProgrammeAttendance';
+import PastorHome, { membersByArea } from './PastorHome';
 
 export default function PastorDashboard({ activeTab }) {
-  const map = { overview: Overview, register: RegisterMember, myMembers: MyMembers, followup: FollowUp, programmes: ProgrammeAttendance, reports: Reports };
-  const Comp = map[activeTab] || Overview;
+  const map = { register: RegisterMember, myMembers: MyMembers, followup: FollowUp, programmes: ProgrammeAttendance, reports: Reports };
+  const Comp = map[activeTab] || PastorHome;
   return <div className="pastor-dashboard"><Comp /></div>;
-}
-
-function Overview() {
-  const { profile } = useAuth();
-  const [members, setMembers] = useState([]);
-  const [followUps, setFollowUps] = useState([]);
-  useEffect(() => {
-    Promise.all([
-      getMembers({ registeredBy: profile.id }),
-      getFollowUps({ pastorId: profile.id }),
-    ]).then(([m, f]) => { setMembers(m); setFollowUps(f); });
-  }, []);
-
-  const open = tab => window.dispatchEvent(new CustomEvent('sicc:pastor-go', { detail: tab }));
-  const completed = followUps.filter(f => f.status === 'Completed').length;
-  const newConverts = members.filter(m => m.status === 'New Convert').length;
-  return (
-    <>
-      <div className="pastor-mobile-overview">
-        <div className="pastor-hero">
-          <div className="pastor-hero-eyebrow">YOUR MINISTRY AT A GLANCE</div>
-          <div className="pastor-hero-label">Members in your care</div>
-          <div className="pastor-hero-main"><strong>{members.length}</strong><button type="button" onClick={() => open('myMembers')}>View members <ChevronRight size={20}/></button></div>
-          <div className="pastor-hero-sub">Welcome, {profile?.name || 'Pastor'}</div>
-        </div>
-        <section aria-label="Quick actions">
-          <h2 className="pastor-section-title">Quick Actions</h2>
-          <div className="pastor-quick-actions">
-            {[{ icon: UserPlus, label: 'Register', tab: 'register' }, { icon: Users, label: 'Members', tab: 'myMembers' }, { icon: Phone, label: 'Follow-Up', tab: 'followup' }, { icon: TrendingUp, label: 'Reports', tab: 'reports' }].map(({ icon: Icon, label, tab }) => <button key={tab} type="button" onClick={() => open(tab)}><Icon size={25} strokeWidth={2.3} aria-hidden/><span>{label}</span></button>)}
-          </div>
-        </section>
-        <section aria-label="Reports">
-          <h2 className="pastor-section-title">Reports</h2>
-          <div className="pastor-report-list">
-            {[{ icon: ClipboardList, label: 'Members Registered', count: members.length, tab: 'myMembers' }, { icon: Star, label: 'New Converts', count: newConverts, tab: 'myMembers' }, { icon: CheckSquare, label: 'Completed Follow-Ups', count: completed, tab: 'followup' }].map(({ icon: Icon, label, count, tab }) => <button key={label} type="button" onClick={() => open(tab)}><Icon size={21} aria-hidden/><span>{label}</span><strong>{count}</strong><ChevronRight size={20} aria-hidden/></button>)}
-          </div>
-        </section>
-        <section aria-label="Suggested actions">
-          <h2 className="pastor-section-title">Suggested For You</h2>
-          <div className="pastor-suggestions">
-            <button type="button" onClick={() => open('followup')}><span>Connect with someone today</span><HeartHandshake size={66} strokeWidth={1.3} aria-hidden/><small>Record a follow-up</small></button>
-            <button type="button" onClick={() => open('programmes')}><span>Manage check-in</span><BookOpen size={66} strokeWidth={1.3} aria-hidden/><small>Programme Attendance</small></button>
-          </div>
-        </section>
-      </div>
-      <div className="pastor-desktop-overview" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-      <div style={{ background: `linear-gradient(135deg, ${C.success}15, ${C.success}05)`, border: `1px solid ${C.success}30`, borderRadius: 14, padding: '18px 22px' }}>
-        <div style={{ fontSize: 18, fontWeight: 500, color: C.textPrimary, marginBottom: 4 }}>Welcome, {profile?.name}</div>
-        <div style={{ fontSize: 13, color: C.textSecondary }}>Your activities are visible to Bishop Enobong Etteh and Admin for accountability.</div>
-      </div>
-      <Grid cols="repeat(auto-fit, minmax(160px, 1fr))">
-        <StatCard label="Members Registered" value={members.length} icon={<ClipboardList size={18} />} color={C.success} />
-        <StatCard label="New Converts" value={members.filter(m => m.status === 'New Convert').length} icon={<Star size={18} />} color={C.gold} />
-        <StatCard label="Follow-Up Reports" value={followUps.length} icon={<Phone size={18} />} color={C.blue} />
-        <StatCard label="Completed" value={followUps.filter(f => f.status === 'Completed').length} icon={<CheckSquare size={18} />} color={C.success} />
-      </Grid>
-      <Panel title="Recently Registered">
-        <DataTable
-          columns={[
-            { key: 'name', label: 'Name', render: (_, r) => <strong style={{ color: C.textPrimary }}>{r.first_name} {r.last_name}</strong> },
-            { key: 'kdf_area', label: 'KDF Area', render: v => <Badge label={v} color={C.purple} /> },
-            { key: 'status', label: 'Status', render: v => <StatusBadge status={v} /> },
-            { key: 'date_registered', label: 'Date' },
-          ]}
-          rows={members.slice(0, 6)}
-          emptyText="You have not registered any members yet."
-        />
-      </Panel>
-      </div>
-    </>
-  );
 }
 
 function RegisterMember() {
@@ -144,13 +74,13 @@ function RegisterMember() {
 
       <Panel title="Register New Member / Evangelism Contact">
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-            <Input label="First Name" value={form.firstName} onChange={f('firstName')} placeholder="First name" required />
-            <Input label="Last Name" value={form.lastName} onChange={f('lastName')} placeholder="Last name" required />
+          <div className="sicc-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+            <Input label="First name" value={form.firstName} onChange={f('firstName')} placeholder="First name" required />
+            <Input label="Last name" value={form.lastName} onChange={f('lastName')} placeholder="Last name" required />
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-            <Input label="Phone Number" value={form.phone} onChange={f('phone')} placeholder="08XXXXXXXXX" required />
-            <Input label="Date of Birth" value={form.dateOfBirth} onChange={f('dateOfBirth')} type="date" hint="Used for birthday reminders" />
+          <div className="sicc-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+            <Input label="Phone number" value={form.phone} onChange={f('phone')} placeholder="08XXXXXXXXX" required />
+            <Input label="Date of birth" value={form.dateOfBirth} onChange={f('dateOfBirth')} type="date" hint="Used for birthday reminders" />
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             <label style={{ fontSize: 12, fontWeight: 500, color: C.textSecondary }}>Home Address <span style={{ color: C.danger }}>*</span></label>
@@ -163,7 +93,7 @@ function RegisterMember() {
           </div>
 
           {kdfMatch && (
-            <div style={{ background: '#F3E5F5', border: `1px solid ${C.purple}30`, borderRadius: 10, padding: '11px 14px' }}>
+            <div style={{ background: C.inputBg, border: `1px solid ${C.border}`, borderRadius: 10, padding: '11px 14px' }}>
               <div style={{ fontSize: 12, fontWeight: 500, color: C.purple, marginBottom: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
                 <MapPin size={13} /> Auto KDF Assignment Detected
               </div>
@@ -176,12 +106,12 @@ function RegisterMember() {
             <Alert type="warning" message="No KDF area matched this address. Member will be placed in General Area." />
           )}
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 14 }}>
+          <div className="sicc-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 14 }}>
             <Select label="Department" value={form.department} onChange={f('department')} options={DEPARTMENTS.map(d => ({ value: d.name, label: d.name }))} />
-            <Select label="Affinity Group" value={form.affinityGroup} onChange={f('affinityGroup')} options={AFFINITY_GROUPS.map(g => ({ value: g, label: g }))} />
-            <Select label="Member Status" value={form.status} onChange={f('status')} options={MEMBER_STATUSES.map(s => ({ value: s, label: s }))} required />
+            <Select label="Affinity group" value={form.affinityGroup} onChange={f('affinityGroup')} options={AFFINITY_GROUPS.map(g => ({ value: g, label: g }))} />
+            <Select label="Member status" value={form.status} onChange={f('status')} options={MEMBER_STATUSES.map(s => ({ value: s, label: s }))} required />
           </div>
-          <Select label="Spiritual Status" value={form.spiritualStatus} onChange={f('spiritualStatus')} options={SPIRITUAL_STATUSES.map(s => ({ value: s, label: s }))} />
+          <Select label="Spiritual status" value={form.spiritualStatus} onChange={f('spiritualStatus')} options={SPIRITUAL_STATUSES.map(s => ({ value: s, label: s }))} />
           <Textarea label="Notes (Optional)" value={form.notes} onChange={f('notes')} placeholder="Any additional notes about this person..." rows={2} />
 
           {error && !duplicate && <Alert type="danger" message={error} onDismiss={() => setError("")} />}
@@ -214,7 +144,7 @@ function MyMembers() {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
         <div style={{ flex: 1, minWidth: 200 }}><SearchInput value={search} onChange={setSearch} placeholder="Search your members..." /></div>
-        <FilterSelect value={filter} onChange={setFilter} options={MEMBER_STATUSES.map(s => ({ value: s, label: s }))} placeholder="All Statuses" />
+        <FilterSelect value={filter} onChange={setFilter} options={MEMBER_STATUSES.map(s => ({ value: s, label: s }))} placeholder="All statuses" />
         <Badge label={`${filtered.length} members`} color={C.success} />
       </div>
       <Panel>
@@ -223,7 +153,7 @@ function MyMembers() {
             { key: 'name', label: 'Name', render: (_, r) => <strong style={{ color: C.textPrimary }}>{r.first_name} {r.last_name}</strong> },
             { key: 'phone', label: 'Phone' },
             { key: 'address', label: 'Address' },
-            { key: 'kdf_area', label: 'KDF Area', render: v => <Badge label={v} color={C.purple} /> },
+            { key: 'kdf_area', label: 'KDF area', render: v => <Badge label={v} color={C.purple} /> },
             { key: 'department', label: 'Dept', render: v => v || 'N/A' },
             { key: 'affinity_group', label: 'Affinity', render: v => v ? <Badge label={v} color={C.blue} /> : 'N/A' },
             { key: 'status', label: 'Status', render: v => <StatusBadge status={v} /> },
@@ -284,7 +214,7 @@ function FollowUp() {
         <Grid cols="repeat(3, 1fr)" gap={12}>
           <StatCard label="Total" value={followUps.length} icon={<Phone size={18} />} color={C.blue} />
           <StatCard label="Completed" value={followUps.filter(f => f.status === 'Completed').length} icon={<CheckSquare size={18} />} color={C.success} />
-          <StatCard label="In Progress" value={followUps.filter(f => f.status === 'In Progress').length} icon={<Activity size={18} />} color={C.warning} />
+          <StatCard label="In progress" value={followUps.filter(f => f.status === 'In Progress').length} icon={<Activity size={18} />} color={C.warning} />
         </Grid>
         <Btn onClick={() => { setSubmitError(''); setShowModal(true); }} color={C.navy} disabled={Boolean(loadError)}><Phone size={14} /> Submit Follow-Up</Btn>
       </div>
@@ -338,7 +268,7 @@ function Reports() {
       getFollowUps({ pastorId: profile.id }),
     ]).then(([m, f]) => { setMembers(m); setFollowUps(f); });
   }, []);
-  const kdfBreakdown = Object.entries(members.reduce((acc, m) => { acc[m.kdf_area] = (acc[m.kdf_area] || 0) + 1; return acc; }, {})).map(([kdf_area, count]) => ({ kdf_area, count }));
+  const kdfBreakdown = membersByArea(members).map(([kdf_area, count]) => ({ kdf_area, count }));
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
@@ -361,7 +291,7 @@ function Reports() {
       <Panel title="My Members by KDF Area">
         <DataTable
           columns={[
-            { key: 'kdf_area', label: 'KDF Area' },
+            { key: 'kdf_area', label: 'KDF area' },
             { key: 'count', label: 'Members', render: v => <Badge label={v} color={C.purple} /> },
           ]}
           rows={kdfBreakdown}

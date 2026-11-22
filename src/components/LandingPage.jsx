@@ -358,7 +358,7 @@ export default function LandingPage({ onEnter }) {
                 <span style={{ fontSize: 11, color: C.gold }}>● Live</span>
               </div>
               <div style={{ padding: '14px 16px' }}>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 12 }}>
+                <div className="landing-stack-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8, marginBottom: 12 }}>
                   {[
                     { label: 'Members', val: '348', color: '#185FA5' },
                     { label: 'KDF Zones', val: '41', color: C.gold },
@@ -443,7 +443,7 @@ export default function LandingPage({ onEnter }) {
           </div>
         </FadeIn>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.25rem' }}>
+        <div className="landing-stack-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.25rem' }}>
           {[
             { icon: <Users size={22} color="#185FA5" />, bg: '#E6F1FB', title: 'Member Management', desc: 'Maintain complete member records, including contact details, spiritual status, affinity group, KDF area, and ministry involvement.' },
             { icon: <MapPin size={22} color={C.gold} />, bg: C.goldPale, title: 'KDF Zone Tracking', desc: 'Manage all 41 Kingdom Dominion Fellowship zones across Lagos. Assign coordinators, track members per zone, and monitor outreach activity.' },
@@ -480,7 +480,7 @@ export default function LandingPage({ onEnter }) {
             </div>
           </FadeIn>
 
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '1.25rem' }}>
+          <div className="landing-stack-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '1.25rem' }}>
             {[
               { num: '01', icon: <Shield size={20} color={C.gold} />, title: 'Sign In', desc: 'Sign in with your SICC credentials. The portal provides access based on your role: Bishop, Admin, Pastor, Department Leader, or KDF Coordinator.' },
               { num: '02', icon: <Users size={20} color={C.gold} />, title: 'View Your Dashboard', desc: 'Your dashboard presents the information relevant to your role, including member, KDF area, or department records.' },
@@ -560,7 +560,7 @@ export default function LandingPage({ onEnter }) {
           </FadeIn>
 
           <FadeIn delay={0.15}>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+            <div className="landing-stack-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
               {[
                 'Obalende / Ikoyi / Lekki 1', 'Victoria Garden City',
                 'Chevron / Chevy View', 'Thomas Estate',

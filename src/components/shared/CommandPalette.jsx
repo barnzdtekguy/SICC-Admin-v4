@@ -37,7 +37,7 @@ export default function CommandPalette({ open, onClose, pages, onGo, onOpenMembe
     else if (e.key === 'Enter') { e.preventDefault(); choose(items[index]); }
   };
   return (
-    <div role="presentation" onMouseDown={e => e.target === e.currentTarget && onClose()} style={{ position: 'fixed', inset: 0, zIndex: 2000, background: 'rgba(7,14,28,.55)', backdropFilter: 'blur(3px)', display: 'flex', justifyContent: 'center', alignItems: 'flex-start', paddingTop: '12vh', paddingInline: 16 }}>
+    <div role="presentation" onMouseDown={e => e.target === e.currentTarget && onClose()} style={{ position: 'fixed', inset: 0, zIndex: 2000, background: 'var(--floating-dim)', display: 'flex', justifyContent: 'center', alignItems: 'flex-start', paddingTop: '12vh', paddingInline: 16 }}>
       <div role="dialog" aria-modal="true" aria-label="Quick search" onKeyDown={onKey} style={{ width: '100%', maxWidth: 560, background: C.cardBg, border: `1px solid ${C.border}`, borderRadius: 16, boxShadow: 'var(--shadow-2)', overflow: 'hidden', animation: 'rise .15s ease-out' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '14px 16px', borderBottom: `1px solid ${C.border}` }}>
           <Search size={17} aria-hidden style={{ color: C.textMuted }} />

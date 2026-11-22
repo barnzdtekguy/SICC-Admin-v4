@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
-import { X, Phone, MapPin, Building2, Cake, History, UserCheck } from 'lucide-react';
+import { Phone, MapPin, Building2, Cake, History, UserCheck } from 'lucide-react';
 import { C } from '../../lib/theme';
 import { getMemberTimeline } from '../../lib/db';
-import { StatusBadge, Skeleton, Alert } from './UI';
+import { StatusBadge, Skeleton, Alert, Modal } from './UI';
 
 const fmt = v => (v ? new Date(String(v).replace(' ', 'T') + (String(v).length <= 10 ? '' : 'Z')).toLocaleString('en-NG', { dateStyle: 'medium', timeStyle: String(v).length > 10 ? 'short' : undefined }) : '–');
 
@@ -15,14 +15,10 @@ export default function MemberDrawer({ memberId, onClose }) {
     getMemberTimeline(memberId).then(data => active && setState({ loading: false, data, error: '' })).catch(e => active && setState({ loading: false, data: null, error: e.message }));
     return () => { active = false; };
   }, [memberId]);
-  useEffect(() => { const k = e => e.key === 'Escape' && onClose(); document.addEventListener('keydown', k); return () => document.removeEventListener('keydown', k); }, [onClose]);
   const m = state.data?.member;
   const row = (icon, text) => text ? <div style={{ display: 'flex', gap: 10, alignItems: 'center', fontSize: 14, color: C.textPrimary }}><span aria-hidden style={{ color: C.textMuted, display: 'flex' }}>{icon}</span>{text}</div> : null;
   return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 1500, display: 'flex', justifyContent: 'flex-end' }}>
-      <div onClick={onClose} style={{ position: 'absolute', inset: 0, background: 'rgba(7,14,28,.5)' }} />
-      <aside role="dialog" aria-modal="true" aria-label="Member profile" style={{ position: 'relative', width: 'min(440px, 100%)', background: C.cardBg, borderLeft: `1px solid ${C.border}`, height: '100%', overflowY: 'auto', padding: 22, boxShadow: 'var(--shadow-2)', animation: 'rise .2s ease-out' }}>
-        <button type="button" onClick={onClose} aria-label="Close profile" style={{ position: 'absolute', top: 14, right: 14, background: 'none', border: 'none', color: C.textMuted, padding: 6 }}><X size={18} /></button>
+    <Modal title="Member profile" width={440} placement="side" onClose={onClose}>
         {state.loading && <div style={{ display: 'grid', gap: 12, marginTop: 24 }}><Skeleton w={200} h={30} /><Skeleton h={14} /><Skeleton h={14} w="70%" /><Skeleton h={120} /></div>}
         {state.error && <div style={{ marginTop: 30 }}><Alert type="error" message={state.error} /></div>}
         {m && (
@@ -49,7 +45,6 @@ export default function MemberDrawer({ memberId, onClose }) {
             {state.data.updated_by && <p style={{ fontSize: 12, color: C.textMuted, marginTop: 20 }}>Last updated by {state.data.updated_by} on {fmt(state.data.updated_at)}</p>}
           </>
         )}
-      </aside>
-    </div>
+    </Modal>
   );
 }

@@ -36,7 +36,7 @@ export default function Insights() {
       </Panel>
       {error ? <Alert type="error" message={error} /> : !data ? <PageSkeleton /> : (
         <>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 14 }}>
+          <div className="sicc-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 14 }}>
             <StatCard label="Church-wide attendance" value={sum(data.byService, 'total').toLocaleString()} sub={`${sum(data.byService, 'sessions')} services`} color={C.info} />
             <StatCard label="Average per service" value={data.byService.length ? Math.round(sum(data.byService, 'total') / Math.max(1, sum(data.byService, 'sessions'))).toLocaleString() : '–'} color={C.success} />
             <StatCard label="New members" value={sum(data.newMembers, 'n')} color={C.gold} />
