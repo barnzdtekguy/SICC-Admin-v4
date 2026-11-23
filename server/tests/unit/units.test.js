@@ -3,7 +3,9 @@ process.env.NODE_ENV = 'test';
 process.env.JWT_SECRET = 'unit-test-secret-0123456789abcdef0123456789abcdef0123456789abcdef';
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
-const { validatePassword, generateTempPassword } = require('../../lib/password');
+const bcrypt = require('bcryptjs');
+const { validatePassword, generateTempPassword, hashPassword, verifyPassword } = require('../../lib/password');
+const { PASSWORD_HINT } = require('../../../shared/password-policy.mjs');
 const totp = require('../../lib/totp');
 const { encrypt, decrypt, checkinToken, verifyCheckinToken } = require('../../lib/crypto');
 const { toCsv } = require('../../lib/csv');
@@ -11,13 +13,19 @@ const { canManageRole, can } = require('../../permissions');
 const { digest, GENESIS, redact } = require('../../lib/audit');
 
 test('password policy', () => {
-  assert.match(validatePassword('short1A!'), /12/);
-  assert.ok(validatePassword('Password12345!'));
-  assert.ok(validatePassword('Qwerty!Abc12345'));
-  assert.ok(validatePassword('Amaga!Strong-9988', { name: 'Sam Amaga' }));
-  assert.equal(validatePassword('Granite!Lantern-7731'), null);
-  assert.equal(validatePassword('correct horse battery staple ok'), null);
+  for (const accepted of ['ABCD12!Z', 'Password12345!', 'ÁBÇĐ٥٦!Á', 'A1!'.repeat(90)]) assert.equal(validatePassword(accepted), null);
+  for (const rejected of ['A1!bcde', 'abcd12!z', 'ABCDEF!Z', 'ABCD123Z', 'ABCD12 Z', 'correct horse battery staple ok', null]) {
+    assert.equal(validatePassword(rejected), PASSWORD_HINT);
+  }
   assert.equal(validatePassword(generateTempPassword()), null);
+});
+
+test('long passwords are compared in full and legacy bcrypt passwords still verify', async () => {
+  const base = `A1!${'x'.repeat(220)}`;
+  const hash = await hashPassword(`${base}a`);
+  assert.equal(await verifyPassword(`${base}a`, hash), true);
+  assert.equal(await verifyPassword(`${base}b`, hash), false);
+  assert.equal(await verifyPassword('legacy', bcrypt.hashSync('legacy', 4)), true);
 });
 
 test('RFC 6238 test vectors (SHA-1)', () => {

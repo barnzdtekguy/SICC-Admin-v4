@@ -7,6 +7,7 @@ import { useToast } from '../shared/Toast';
 import AttendanceHistory from '../shared/AttendanceHistory';
 import { getBrief, getMembers, getProfiles, createProfile, updateProfile, resetProfilePassword, resetProfileMfa, unlockProfile, getFollowUps, getAttendance, createAttendance, getLogs, getSMSConfig, saveSMSConfig } from '../../lib/db';
 import { DEPARTMENTS, KDF_AREAS, ROLES, ROLE_COLORS, ROLE_LABELS, SERVICE_TYPES } from '../../data/constants';
+import { PASSWORD_HINT, validatePassword } from '../../../shared/password-policy.mjs';
 import { Users, UserCheck, MapPin, Building2, CheckSquare, TrendingUp, Phone, ClipboardList, BarChart2, Calendar, Activity, Briefcase, MessageSquare, Settings, UserPlus } from 'lucide-react';
 
 import ProgrammeAttendance from '../pastor/ProgrammeAttendance';
@@ -88,6 +89,8 @@ export function UserManagement() {
 
   const handleCreate = async () => {
     if (!form.name || !form.role || !form.email || !form.password) { setMsg({ type: 'warning', text: 'Name, email, password and role are all required.' }); return; }
+    const problem = validatePassword(form.password);
+    if (problem) { setMsg({ type: 'warning', text: problem }); return; }
     setLoading(true);
     const { data, error } = await createProfile({
       name: form.name, email: form.email, phone: form.phone || null, role: form.role,
@@ -147,7 +150,7 @@ export function UserManagement() {
             <Input label="Email Address" value={form.email} onChange={v => setForm({ ...form, email: v })} type="email" placeholder="pastor@sicc.org" required />
             <Input label="Phone number" value={form.phone} onChange={v => setForm({ ...form, phone: v })} placeholder="08XXXXXXXXX" />
             <div>
-              <Input label="Temporary password" value={form.password} onChange={v => setForm({ ...form, password: v })} type="text" placeholder="At least 12 characters" hint="They must replace it at first sign-in. Share it privately." required />
+              <Input label="Temporary password" value={form.password} onChange={v => setForm({ ...form, password: v })} type="text" hint={`${PASSWORD_HINT} Share it privately. They'll replace it at first sign-in.`} required />
               <div style={{ marginTop: 6 }}><Btn size="sm" variant="ghost" color={C.info} onClick={() => setForm({ ...form, password: generatePassword() })}>Generate a strong one</Btn></div>
             </div>
             <Select label="Role" value={form.role} onChange={v => setForm({ ...form, role: v, department: '', kdfArea: '' })} options={roleOptions} required hint={isBishop ? undefined : 'Only the Bishop can create Administrator or Bishop accounts.'} />

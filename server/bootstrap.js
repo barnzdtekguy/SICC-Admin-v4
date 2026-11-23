@@ -14,7 +14,7 @@ async function bootstrapAdmin(env = process.env) {
   const name = env.INITIAL_ADMIN_NAME || 'System Administrator';
   const role = ['bishop', 'admin'].includes(env.INITIAL_ADMIN_ROLE) ? env.INITIAL_ADMIN_ROLE : 'bishop';
   if (!email || !password) { console.warn('No accounts exist yet. Set INITIAL_ADMIN_EMAIL and INITIAL_ADMIN_PASSWORD to create the first administrator.'); return false; }
-  const problem = validatePassword(password, { email, name });
+  const problem = validatePassword(password);
   if (problem) throw new Error(`INITIAL_ADMIN_PASSWORD rejected: ${problem}`);
   const id = crypto.randomUUID();
   await query("INSERT INTO profiles (id, name, email, role, avatar, password_hash, must_change_password) VALUES (?, ?, ?, ?, ?, ?, 1)",

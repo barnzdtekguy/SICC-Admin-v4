@@ -264,7 +264,7 @@ function signupDetails(body) {
   const email = str(body?.email, { max: 254, field: 'Email' })?.toLowerCase() || null;
   if (email && !emailPattern.test(email)) throw new HttpError(400, 'Enter a valid email address.');
   const password = typeof body?.password === 'string' ? body.password : '';
-  const problem = validatePassword(password, { email, name, username: phone });
+  const problem = validatePassword(password);
   if (problem) throw new HttpError(400, problem);
   return { name, phone, email, password };
 }

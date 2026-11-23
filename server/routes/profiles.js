@@ -47,7 +47,7 @@ router.post('/profiles', ...secured, requirePerm('profiles.manage'), asyncRoute(
   if (!EMAIL_RE.test(email)) throw new HttpError(400, 'Enter a valid email address.');
   if (!CHURCH_ROLES.includes(body.role)) throw new HttpError(400, 'Choose a valid user role.');
   if (!canManageRole(req.profile.role, body.role)) throw new HttpError(403, 'Only the Bishop can create Bishop and Administrator accounts.');
-  const problem = validatePassword(body.password, { email, name });
+  const problem = validatePassword(body.password);
   if (problem) throw new HttpError(400, problem);
   if (body.role === 'department_leader' && body.department) {
     const d = await query('SELECT 1 FROM departments WHERE name = ? LIMIT 1', [body.department]);

@@ -4,9 +4,9 @@ const jwt = require('jsonwebtoken');
 const { query } = require('../db');
 const { config } = require('../config');
 const { asyncRoute, HttpError, sendData } = require('../http');
-const { authenticate, requirePerm } = require('../middleware');
+const { authenticate, enforceRestrictions, requirePerm } = require('../middleware');
 const { COOKIE_NAME, cookieOptions, createSession, signChallenge, verifyChallenge, revokeSession, revokeAllForUser, listSessions } = require('../lib/sessions');
-const { validatePassword, hashPassword, verifyPassword, DUMMY_HASH } = require('../lib/password');
+const { validatePassword, hashPassword, verifyPassword, verifyLoginPassword } = require('../lib/password');
 const totp = require('../lib/totp');
 const { encrypt, decrypt } = require('../lib/crypto');
 const bcrypt = require('bcryptjs');
@@ -57,7 +57,7 @@ async function completeLogin(req, res, profile, { remember, mfaPassed }) {
 
 router.post('/login', asyncRoute(async (req, res) => {
   const identifier = String(req.body?.identifier || '').trim().slice(0, 254);
-  const password = String(req.body?.password || '').slice(0, 200);
+  const password = typeof req.body?.password === 'string' ? req.body.password : '';
   if (!identifier || !password) throw new HttpError(400, 'Enter your username or email and password.');
   const remember = req.body?.rememberMe === true;
 
@@ -74,7 +74,7 @@ router.post('/login', asyncRoute(async (req, res) => {
   if (profile?.locked_until && new Date(`${profile.locked_until.replace(' ', 'T')}Z`) > new Date()) {
     throw new HttpError(429, lockedMessage(new Date(`${profile.locked_until.replace(' ', 'T')}Z`).getTime()));
   }
-  const ok = await verifyPassword(password, profile ? profile.password_hash : DUMMY_HASH);
+  const ok = await verifyLoginPassword(password, profile?.password_hash);
   if (!profile || !ok || !profile.is_active) {
     await registerFailure(profile, req, failureKey, profile && !profile.is_active ? 'inactive account' : 'bad password');
     throw new HttpError(401, GENERIC);
@@ -120,6 +120,12 @@ router.post('/mfa/verify', asyncRoute(async (req, res) => {
 
 router.get('/me', ...self, (req, res) => sendData(res, sessionPayload(req.profile, req.session)));
 
+router.post('/welcome-tour', ...self, enforceRestrictions, asyncRoute(async (req, res) => {
+  if (req.body?.account_id !== req.profile.id) throw new HttpError(403, 'Sign in with the account that dismissed the tour.');
+  await query('UPDATE profiles SET welcome_tour_done_at = UTC_TIMESTAMP() WHERE id = ? AND welcome_tour_done_at IS NULL', [req.profile.id]);
+  sendData(res, { welcome_tour_pending: false });
+}));
+
 router.post('/logout', asyncRoute(async (req, res) => {
   const token = req.cookies?.[COOKIE_NAME];
   if (token) {
@@ -135,10 +141,10 @@ router.post('/logout', asyncRoute(async (req, res) => {
 router.post('/password', ...self, asyncRoute(async (req, res) => {
   const { current_password: current, new_password: next } = req.body || {};
   const profile = req.profile;
-  if (!(await verifyPassword(String(current || ''), profile.password_hash))) throw new HttpError(400, 'Your current password is not correct.');
-  const problem = validatePassword(next, profile);
+  if (!(await verifyPassword(current, profile.password_hash))) throw new HttpError(400, 'Your current password is not correct.');
+  const problem = validatePassword(next);
   if (problem) throw new HttpError(400, problem);
-  if (await verifyPassword(String(next), profile.password_hash)) throw new HttpError(400, 'Choose a password you have not used before.');
+  if (next === current) throw new HttpError(400, 'Choose a different password from your current one.');
   await query('UPDATE profiles SET password_hash = ?, must_change_password = 0, password_changed_at = CURRENT_TIMESTAMP, failed_logins = 0, locked_until = NULL WHERE id = ?', [await hashPassword(next), profile.id]);
   await revokeAllForUser(profile.id, req.session.id, 'password_changed');
   await audit(req, { action: 'auth.password_changed', entity_type: 'profile', entity_id: profile.id });

@@ -93,7 +93,7 @@ export default function NotificationBell({ onNavigate }) {
 
   return (
     <div className="notification-bell">
-      <button ref={trigger} type="button" className="notification-trigger"
+      <button ref={trigger} type="button" className="notification-trigger" data-tour-target="notifications"
         onClick={open ? close : () => { setOpen(true); if (loadError) load(); }}
         aria-label={`Notifications${unread ? `, ${unread} unread` : ''}`} aria-haspopup="dialog"
         aria-expanded={open} aria-controls={open ? dialogId : undefined}>

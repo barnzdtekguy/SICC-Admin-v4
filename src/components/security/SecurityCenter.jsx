@@ -8,12 +8,7 @@ import { useTheme } from '../../hooks/useTheme';
 import { useToast } from '../shared/Toast';
 import { Panel, Btn, Input, Alert, Badge, Checkbox, PageHeader, Skeleton } from '../shared/UI';
 import { enablePush, disablePush, pushEnabled, pushSupported, canInstall, promptInstall, isStandalone } from '../../lib/pwa';
-
-const RULES = [
-  { ok: p => p.length >= 12, text: 'At least 12 characters (longer is better; a few random words works well)' },
-  { ok: p => [/[a-z]/, /[A-Z]/, /[0-9]/, /[^A-Za-z0-9]/].filter(r => r.test(p)).length >= 3 || p.length >= 16, text: 'Mix of upper/lower case, numbers or symbols (or 16+ characters)' },
-  { ok: p => !/(password|church|salem|sicc|jesus|qwerty|123456|abcde)/i.test(p), text: 'No common words or sequences' },
-];
+import { PASSWORD_RULES, validatePassword } from '../../../shared/password-policy.mjs';
 
 export function PasswordForm({ onDone, forced }) {
   const toast = useToast();
@@ -22,6 +17,8 @@ export function PasswordForm({ onDone, forced }) {
   const mismatch = again && next !== again;
   const submit = async e => {
     e.preventDefault(); setError('');
+    const problem = validatePassword(next);
+    if (problem) { setError(problem); return; }
     if (next !== again) { setError('The new passwords do not match.'); return; }
     setBusy(true);
     try { await apiRequest('/auth/password', { method: 'POST', body: { current_password: current, new_password: next } }); toast.success('Password changed. Other devices were signed out.'); setCurrent(''); setNext(''); setAgain(''); onDone?.(); }
@@ -33,7 +30,13 @@ export function PasswordForm({ onDone, forced }) {
       <Input label={forced ? 'Temporary password' : 'Current password'} type="password" value={current} onChange={setCurrent} autoComplete="current-password" required />
       <Input label="New password" type="password" value={next} onChange={setNext} autoComplete="new-password" required />
       <ul style={{ listStyle: 'none', display: 'grid', gap: 4, fontSize: 12 }} aria-label="Password requirements">
-        {RULES.map(r => { const ok = next && r.ok(next); return <li key={r.text} style={{ color: ok ? C.success : C.textMuted, display: 'flex', gap: 6 }}><CheckCircle2 size={14} aria-hidden style={{ flexShrink: 0, marginTop: 1, opacity: ok ? 1 : .45 }} />{r.text}</li>; })}
+        {PASSWORD_RULES.map(rule => {
+          const met = rule.test(next);
+          return <li key={rule.label} style={{ color: met ? C.success : C.textMuted, display: 'flex', gap: 6 }}>
+            <CheckCircle2 size={14} aria-hidden style={{ flexShrink: 0, marginTop: 1, opacity: met ? 1 : .45 }} />
+            {rule.label}<span className="sr-only"> ({met ? 'met' : 'missing'})</span>
+          </li>;
+        })}
       </ul>
       <Input label="Confirm new password" type="password" value={again} onChange={setAgain} autoComplete="new-password" error={mismatch ? 'Passwords do not match' : ''} required />
       <div><Btn type="submit" color={C.info} loading={busy} disabled={!current || !next || mismatch}>Change password</Btn></div>

@@ -310,6 +310,7 @@ const migrations = [
     },
   },
   { id: '014_red_reminders', up: async () => runSqlFile('red-reminders.sql') },
+  { id: '015_welcome_tour', up: async () => addColumn('profiles', 'welcome_tour_done_at', 'DATETIME NULL') },
 ];
 
 // Belt and braces: block edits/deletes of audit rows at the database level where the host allows triggers.

@@ -1,9 +1,9 @@
 // src/components/LandingPage.jsx
 import { useState, useEffect, useRef } from 'react';
 import {
-  Users, CalendarDays, DollarSign, MapPin, Building2,
-  MessageSquare, BarChart3, Shield, ChevronRight,
-  BookOpen, UserCheck, Bell, ArrowRight, Menu, X
+  Users, CalendarDays, MapPin, Building2,
+  BarChart3, Shield, ChevronRight,
+  BookOpen, UserCheck, Bell, ArrowRight, Menu, X, HeartHandshake, Send
 } from 'lucide-react';
 import { DEPARTMENTS } from '../data/constants';
 
@@ -15,6 +15,13 @@ const C = {
   border: '#E0E4E8',
 };
 
+const publicLinks = [['operation-red', 'Operation R.E.D.'], ['features', 'Features'], ['modules', 'Modules'], ['roles', 'Who Uses It'], ['about', 'About']];
+const mission = [
+  { title: 'Recruit', Icon: HeartHandshake, text: 'Share the gospel, win souls, and help them connect with the church.' },
+  { title: 'Equip', Icon: BookOpen, text: 'Train new believers and help them grow in their faith.' },
+  { title: 'Deploy', Icon: Send, text: 'Help them serve and go out to win others.' },
+];
+
 /* ── tiny hook: fires once when element enters viewport ── */
 function useInView(threshold = 0.15) {
   const ref = useRef(null);
@@ -22,6 +29,7 @@ function useInView(threshold = 0.15) {
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
+    if (typeof IntersectionObserver === 'undefined') { setVisible(true); return; }
     const obs = new IntersectionObserver(([e]) => { if (e.isIntersecting) { setVisible(true); obs.disconnect(); } }, { threshold });
     obs.observe(el);
     return () => obs.disconnect();
@@ -256,7 +264,7 @@ export default function LandingPage({ onEnter }) {
 
         {/* desktop links */}
         <div style={{ display: 'flex', gap: '2rem', alignItems: 'center' }} className="desk-nav">
-          {[['features', 'Features'], ['modules', 'Modules'], ['roles', 'Who Uses It'], ['about', 'About']].map(([id, label]) => (
+          {publicLinks.map(([id, label]) => (
             <button key={id} className="nav-link" onClick={() => scrollTo(id)}>{label}</button>
           ))}
         </div>
@@ -275,7 +283,7 @@ export default function LandingPage({ onEnter }) {
           {menuOpen ? <X size={18} /> : <Menu size={18} />}
         </button>
         <div id="landing-mobile-menu" className={`mobile-nav-panel${menuOpen ? ' open' : ''}`}>
-          {[['features', 'Features'], ['modules', 'Modules'], ['roles', 'Who Uses It'], ['about', 'About']].map(([id, label]) => (
+          {publicLinks.map(([id, label]) => (
             <button key={id} className="nav-link" onClick={() => scrollTo(id)}>{label}</button>
           ))}
           <button className="btn-gold" onClick={handleEnter} style={{ justifyContent: 'center', marginTop: 4 }}>
@@ -426,6 +434,31 @@ export default function LandingPage({ onEnter }) {
               <div style={{ fontSize: 9, color: '#E65100', fontWeight: 500 }}>↑ 2 due this week</div>
             </div>
           </div>
+        </div>
+      </section>
+
+      <section id="operation-red" aria-labelledby="operation-red-title" style={{ background: C.cream, padding: 'clamp(3.5rem, 8vw, 6rem) clamp(1.25rem, 5vw, 3rem)' }}>
+        <div style={{ maxWidth: 1000, marginInline: 'auto', display: 'grid', gap: 24 }}>
+          <div style={{ maxWidth: 760 }}>
+            <h2 id="operation-red-title" className="serif" style={{ fontSize: 'clamp(2rem, 4.5vw, 3.4rem)', lineHeight: 1.08, color: C.navy }}>
+              Project 3000 by Love Revolution — Operation R.E.D.
+            </h2>
+            <p style={{ lineHeight: 1.7, marginTop: 16, color: C.textSec }}>
+              Operation R.E.D. is Salem’s plan to win, equip, and deploy more than 3,000 souls before SOC Africa 2027, which takes place from 22 to 25 April 2027.
+            </p>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 230px), 1fr))', gap: 16 }}>
+            {mission.map(({ title, Icon, text }) => (
+              <div key={title} className="feat-card">
+                <span aria-hidden style={{ display: 'inline-grid', placeItems: 'center', width: 44, height: 44, borderRadius: 10, background: C.goldPale, color: C.navy }}><Icon size={21} /></span>
+                <h3 className="serif" style={{ fontSize: '1.65rem', color: C.navy, marginTop: 12 }}>{title}</h3>
+                <p style={{ color: C.textSec, lineHeight: 1.65, marginTop: 6 }}>{text}</p>
+              </div>
+            ))}
+          </div>
+          <p style={{ color: C.navy, lineHeight: 1.65 }}>
+            We work in <strong>teams of five: one leader and four members</strong>. Each person aims to win <strong>three souls per month</strong>.
+          </p>
         </div>
       </section>
 

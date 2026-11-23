@@ -1,4 +1,4 @@
-const bcrypt = require('bcryptjs');
+const { verifyLoginPassword } = require('./lib/password');
 const jwt = require('jsonwebtoken');
 const express = require('express');
 const { query } = require('./db');
@@ -16,7 +16,7 @@ function getJwtSecret() {
 }
 
 function publicProfile(profile) {
-  const { password_hash, ...safeProfile } = profile;
+  const { password_hash: _passwordHash, welcome_tour_done_at: _tour, ...safeProfile } = profile;
   return safeProfile;
 }
 
@@ -76,7 +76,8 @@ function createAuthRouter() {
       [identifier, identifier],
     );
     const profile = profiles[0];
-    if (!profile || !profile.is_active || !(await bcrypt.compare(password, profile.password_hash))) {
+    const valid = await verifyLoginPassword(password, profile?.password_hash);
+    if (!profile || !profile.is_active || !valid) {
       throw new HttpError(401, 'Invalid username/email or password.');
     }
 

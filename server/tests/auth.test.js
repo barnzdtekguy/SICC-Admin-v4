@@ -84,10 +84,47 @@ test('forced password change gates the API, enforces the policy and kills other 
   const other = (await h.login(user)).agent;
   assert.equal((await h.api(agent, 'post', '/auth/password', { current_password: user.password, new_password: 'short' })).status, 400);
   assert.equal((await h.api(agent, 'post', '/auth/password', { current_password: user.password, new_password: 'password12345!' })).status, 400);
-  const ok = await h.api(agent, 'post', '/auth/password', { current_password: user.password, new_password: 'Velvet!Harbour-4420' });
+  const ok = await h.api(agent, 'post', '/auth/password', { current_password: user.password, new_password: 'ABCD12!Z' });
   assert.equal(ok.status, 200); assert.deepEqual(ok.body.data.restrictions, []);
+  assert.equal((await h.login(user, { password: 'ABCD12!Z' })).res.status, 200);
   assert.equal((await h.api(agent, 'get', '/members')).status, 200);
   assert.equal((await h.api(other, 'get', '/auth/me')).status, 401, 'other session must be revoked');
+});
+
+test('an existing bcrypt password signs in without applying the new policy or forcing a reset', async () => {
+  const bcrypt = require('bcryptjs');
+  const user = await h.makeUser('pastor');
+  const oldPassword = 'old password without a number';
+  await query('UPDATE profiles SET password_hash = ? WHERE id = ?', [await bcrypt.hash(oldPassword, 12), user.id]);
+  const { res } = await h.login(user, { password: oldPassword });
+  assert.equal(res.status, 200);
+  assert.deepEqual(res.body.data.restrictions, []);
+});
+
+test('welcome tour dismissal is saved for each role and can only change the current account', async () => {
+  const people = [];
+  for (const role of ['bishop', 'admin', 'pastor', 'department_leader', 'kdf_coordinator', 'red_leader', 'red_member']) {
+    const person = await h.makeUser(role);
+    const { agent, res } = await h.login(person);
+    assert.equal(res.status, 200, role);
+    assert.equal(res.body.data.welcome_tour_pending, true, role);
+    assert.equal(res.body.data.profile.welcome_tour_done_at, undefined);
+    people.push({ person, agent });
+  }
+  assert.equal((await h.api(people[0].agent, 'post', '/auth/welcome-tour', { account_id: people[1].person.id })).status, 403);
+  const restricted = await h.makeUser('pastor', { must_change: true });
+  const restrictedAgent = await h.loginAgent(restricted);
+  assert.equal((await h.api(restrictedAgent, 'post', '/auth/welcome-tour', { account_id: restricted.id })).status, 403);
+  for (const { person, agent } of people) {
+    assert.equal((await h.api(agent, 'get', '/auth/me')).body.data.welcome_tour_pending, true, person.role);
+    assert.equal((await h.api(agent, 'post', '/auth/welcome-tour', { account_id: person.id })).status, 200, person.role);
+    const [first] = await query('SELECT welcome_tour_done_at AS seen FROM profiles WHERE id = ?', [person.id]);
+    assert.ok(first.seen);
+    assert.equal((await h.api(agent, 'post', '/auth/welcome-tour', { account_id: person.id })).status, 200);
+    const [again] = await query('SELECT welcome_tour_done_at AS seen FROM profiles WHERE id = ?', [person.id]);
+    assert.equal(again.seen, first.seen);
+    assert.equal((await h.login(person)).res.body.data.welcome_tour_pending, false, person.role);
+  }
 });
 
 test('logout revokes the session server-side (a stolen cookie stops working)', async () => {

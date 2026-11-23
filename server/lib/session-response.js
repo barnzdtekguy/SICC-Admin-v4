@@ -10,6 +10,7 @@ function sessionPayload(profile, session) {
     user: { id: profile.id, email: profile.email },
     profile: publicProfile(profile),
     restrictions,
+    welcome_tour_pending: profile.welcome_tour_done_at === null,
     session: { expires_at: session?.expires_at || null, remember: Boolean(session?.remember), idle_minutes: config.session.idleMinutes },
   };
 }

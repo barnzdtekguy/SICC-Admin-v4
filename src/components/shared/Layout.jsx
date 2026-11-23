@@ -9,6 +9,8 @@ import NotificationBell from './NotificationBell';
 import CommandPalette from './CommandPalette';
 import MemberDrawer from './MemberDrawer';
 import FloatingCard from './FloatingCard';
+import WelcomeTour from './WelcomeTour';
+import { welcomeTourSteps } from './welcomeTourSteps';
 import '../../styles/app-shell.css';
 import '../../styles/role-home.css';
 import {
@@ -92,6 +94,7 @@ function Sidebar({ groups, activeTab, collapsed, onToggle, onGo }) {
               const Icon = ICON[key];
               return (
                 <button key={key} type="button" onClick={() => onGo(key)} aria-current={activeTab === key ? 'page' : undefined}
+                  data-tour-target={`page-${key}`}
                   aria-label={collapsed ? label : undefined} title={collapsed ? label : undefined}>
                   <Icon {...icon} />{!collapsed && <span>{label}</span>}
                 </button>
@@ -108,7 +111,7 @@ function Sidebar({ groups, activeTab, collapsed, onToggle, onGo }) {
 }
 
 export default function Layout({ activeTab, setActiveTab, mobile, children }) {
-  const { profile, logout } = useAuth();
+  const { profile, logout, showWelcomeTour, dismissWelcomeTour } = useAuth();
   const { effective, setMode } = useTheme();
   const navigate = useNavigate();
   const [collapsed, setCollapsed] = useState(false);
@@ -119,6 +122,7 @@ export default function Layout({ activeTab, setActiveTab, mobile, children }) {
   const [pending, setPending] = useState(0);
   const [canInstall, setCanInstall] = useState(false);
   const main = useRef(null);
+  const shellRef = useRef(null);
   const accountTrigger = useRef(null);
   const moreTrigger = useRef(null);
   const accountId = useId();
@@ -164,13 +168,13 @@ export default function Layout({ activeTab, setActiveTab, mobile, children }) {
   useEffect(() => {
     const key = e => {
       if (!(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== 'k') return;
-      if (document.querySelector('.floating-card-layer')) return;
+      if (showWelcomeTour || document.querySelector('.floating-card-layer')) return;
       e.preventDefault();
       setPaletteOpen(value => !value);
     };
     window.addEventListener('keydown', key);
     return () => window.removeEventListener('keydown', key);
-  }, []);
+  }, [showWelcomeTour]);
 
   const grouped = useMemo(() => {
     const groups = new Map();
@@ -188,7 +192,8 @@ export default function Layout({ activeTab, setActiveTab, mobile, children }) {
   ];
 
   return (
-    <div className="app-shell">
+    <>
+    <div className="app-shell" ref={shellRef}>
       <a href="#main" className="skip-link">Skip to content</a>
       <Sidebar groups={grouped} activeTab={activeTab} collapsed={collapsed} onToggle={() => setCollapsed(value => !value)} onGo={go} />
       <div className="app-workspace">
@@ -198,7 +203,7 @@ export default function Layout({ activeTab, setActiveTab, mobile, children }) {
             <span>{activeTab === 'overview' ? 'SICC Admin' : pageName}</span>
           </button>
           <div className="app-page-title display">{pageName}</div>
-          <button type="button" className="app-header-button app-search-btn" onClick={showSearch} aria-label="Search (Ctrl K)">
+          <button type="button" className="app-header-button app-search-btn" onClick={showSearch} aria-label="Search (Ctrl K)" data-tour-target="search">
             <Search {...icon} /><span>Search</span>
           </button>
           <button type="button" className="app-header-button app-theme-btn" onClick={switchTheme} aria-label={themeLabel}>
@@ -206,7 +211,7 @@ export default function Layout({ activeTab, setActiveTab, mobile, children }) {
           </button>
           <NotificationBell onNavigate={link => { close(); navigate(link); }} />
           <button ref={accountTrigger} type="button" className="app-header-button app-account-btn" onClick={() => toggle('account')}
-            aria-haspopup="dialog" aria-expanded={open === 'account'} aria-controls={open === 'account' ? accountId : undefined} aria-label="Account menu">
+            aria-haspopup="dialog" aria-expanded={open === 'account'} aria-controls={open === 'account' ? accountId : undefined} aria-label="Account menu" data-tour-target="account">
             <span aria-hidden="true">{initials}</span>
           </button>
           {open === 'account' && (
@@ -243,13 +248,13 @@ export default function Layout({ activeTab, setActiveTab, mobile, children }) {
               const label = index === 0 ? 'Home' : key === 'red-board' ? 'Teams' : index === 1 && !redAccount ? 'Members' : page?.label;
               return (
                 <button key={key} type="button" className={center ? 'app-dock-center' : undefined}
-                  onClick={() => go(key)} aria-current={activeTab === key ? 'page' : undefined}>
+                  onClick={() => go(key)} aria-current={activeTab === key ? 'page' : undefined} data-tour-target={`page-${key}`}>
                   <Icon {...icon} size={center ? 24 : 20} />
                   <span className={center ? 'sr-only' : undefined}>{label}</span>
                 </button>
               );
             })}
-            <button ref={moreTrigger} type="button" onClick={() => toggle('more')} aria-haspopup="dialog"
+            <button ref={moreTrigger} type="button" onClick={() => toggle('more')} aria-haspopup="dialog" data-tour-target="more"
               aria-expanded={open === 'more'} aria-controls={open === 'more' ? moreId : undefined}>
               <MoreHorizontal {...icon} /><span>More</span>
             </button>
@@ -271,5 +276,8 @@ export default function Layout({ activeTab, setActiveTab, mobile, children }) {
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} pages={nav} onGo={go} onOpenMember={setMemberId} actions={actions} searchMembers={!redAccount} />
       {!redAccount && memberId && <MemberDrawer memberId={memberId} onClose={() => setMemberId(null)} />}
     </div>
+    {showWelcomeTour && <WelcomeTour key={profile.id} shellRef={shellRef} steps={welcomeTourSteps(nav, dockKeys, role, mobile)}
+      mobile={mobile} onDismiss={dismissWelcomeTour} />}
+    </>
   );
 }

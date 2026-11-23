@@ -2,6 +2,7 @@
 const { test, after } = require('node:test');
 const assert = require('node:assert/strict');
 const h = require('./helpers');
+const { validatePassword } = require('../../shared/password-policy.mjs');
 
 after(() => h.close());
 
@@ -26,7 +27,7 @@ test('profile responses never include password hashes or MFA secrets', async () 
 test('an Administrator cannot create or promote Bishop/Admin accounts; the Bishop can', async () => {
   const admin = await h.loginAgent(await h.makeUser('admin'));
   const bishop = await h.loginAgent(await h.makeUser('bishop'));
-  const body = role => ({ name: 'New Person', email: `n.${h.uniq()}@test.local`, role, password: 'Marble!Orchard-5512' });
+  const body = role => ({ name: 'New Person', email: `n.${h.uniq()}@test.local`, role, password: 'ABCD12!Z' });
   assert.equal((await h.api(admin, 'post', '/profiles', body('bishop'))).status, 403);
   assert.equal((await h.api(admin, 'post', '/profiles', body('admin'))).status, 403);
   assert.equal((await h.api(admin, 'post', '/profiles', body('pastor'))).status, 201);
@@ -34,6 +35,15 @@ test('an Administrator cannot create or promote Bishop/Admin accounts; the Bisho
   assert.equal(made.status, 201); assert.equal(made.body.data.must_change_password, true);
   assert.equal((await h.api(admin, 'delete', `/profiles/${made.body.data.id}`)).status, 403);
   assert.equal((await h.api(admin, 'patch', `/profiles/${made.body.data.id}`, { role: 'pastor' })).status, 403);
+  assert.equal((await h.api(bishop, 'post', '/profiles', body('bishop'))).status, 201);
+  const reset = await h.api(bishop, 'post', `/profiles/${made.body.data.id}/reset-password`);
+  assert.equal(reset.status, 200);
+  assert.equal(validatePassword(reset.body.data.temporary_password), null);
+  const signIn = await h.api(h.request.agent(await h.setup()), 'post', '/auth/login', {
+    identifier: made.body.data.email, password: reset.body.data.temporary_password,
+  });
+  assert.equal(signIn.status, 200);
+  assert.ok(signIn.body.data.restrictions.includes('password_change'));
 });
 
 test('weak passwords are rejected when creating accounts', async () => {

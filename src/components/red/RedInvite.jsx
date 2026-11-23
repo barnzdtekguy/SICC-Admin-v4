@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { Alert, Btn, Input, Panel, Spinner } from '../shared/UI';
 import { useAuth } from '../../hooks/useAuth';
 import { apiRequest } from '../../lib/api';
+import { PASSWORD_HINT, validatePassword } from '../../../shared/password-policy.mjs';
 import '../../styles/red.css';
 
 const messages = {
@@ -48,6 +49,10 @@ function Invitation({ kind, token }) {
   }, [attempt, endpoint, token, validKind]);
 
   const respond = async action => {
+    if (action === 'accept') {
+      const problem = validatePassword(fields.password);
+      if (problem) { setError({ message: problem }); return; }
+    }
     setError(null);
     setPending(true);
     try {
@@ -107,7 +112,7 @@ function Invitation({ kind, token }) {
                     autoComplete="tel" hint="Use this number to sign in. Include the country code for numbers outside Nigeria." disabled={pending} />
                   <Input label="Email (optional)" value={fields.email} onChange={update('email')} type="email" maxLength={254} autoComplete="email" disabled={pending} />
                   <Input label="Password" value={fields.password} onChange={update('password')} type="password" required
-                    autoComplete="new-password" hint="Use at least 12 characters." disabled={pending} />
+                    autoComplete="new-password" hint={PASSWORD_HINT} disabled={pending} />
                   <Btn type="submit" loading={pending} full>Create account and sign in</Btn>
                 </form>
               )}

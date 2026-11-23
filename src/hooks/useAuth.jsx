@@ -5,6 +5,12 @@ import { isRedRole } from '../data/constants';
 
 const AuthContext = createContext(null);
 const QUIET = ['Please sign in to continue.', 'Your session has expired. Please sign in again.'];
+const tourKey = id => `sicc:welcome-tour:v1:${id}`;
+
+function tourSeenHere(id) {
+  try { return localStorage.getItem(tourKey(id)) === 'seen'; }
+  catch { return false; }
+}
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
@@ -14,13 +20,43 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
   const [notice, setNotice] = useState('');
   const [mfaChallenge, setMfaChallenge] = useState(null);
+  const [tourPending, setTourPending] = useState(false);
+  const [dismissedTourFor, setDismissedTourFor] = useState(null);
   const authedRef = useRef(false);
+  const profileId = profile?.id;
+  const tourSeen = profileId && (dismissedTourFor === profileId || tourSeenHere(profileId));
+  const showWelcomeTour = Boolean(profileId && tourPending && !tourSeen);
 
   const applySession = useCallback(session => {
     setUser(session.user); setProfile(session.profile); setRestrictions(session.restrictions || []); setSessionInfo(session.session || null);
+    setTourPending(session.welcome_tour_pending === true);
     authedRef.current = true;
   }, []);
-  const clearSession = useCallback(() => { setUser(null); setProfile(null); setRestrictions([]); setSessionInfo(null); setMfaChallenge(null); authedRef.current = false; }, []);
+  const clearSession = useCallback(() => { setUser(null); setProfile(null); setRestrictions([]); setSessionInfo(null); setMfaChallenge(null); setTourPending(false); authedRef.current = false; }, []);
+  const dismissWelcomeTour = useCallback(() => {
+    if (!profileId) return;
+    try { localStorage.setItem(tourKey(profileId), 'seen'); } catch { /* browser storage is unavailable */ }
+    setDismissedTourFor(profileId);
+  }, [profileId]);
+
+  // Save a dismissal to the account, including one made while the device was offline.
+  useEffect(() => {
+    if (!tourPending || !tourSeen || restrictions.length) return undefined;
+    let active = true;
+    let saving = false;
+    const save = async () => {
+      if (saving) return;
+      saving = true;
+      try {
+        await apiRequest('/auth/welcome-tour', { method: 'POST', body: { account_id: profileId } });
+        if (active) setTourPending(false);
+      } catch { /* retry on reconnect or the next sign-in */ }
+      finally { saving = false; }
+    };
+    save();
+    window.addEventListener('online', save);
+    return () => { active = false; window.removeEventListener('online', save); };
+  }, [profileId, restrictions.length, tourPending, tourSeen]);
 
   useEffect(() => {
     let active = true;
@@ -92,9 +128,10 @@ export function AuthProvider({ children }) {
 
   const value = useMemo(() => ({
     user, profile, restrictions, sessionInfo, notice, mfaChallenge, loading,
+    showWelcomeTour, dismissWelcomeTour,
     isAuthenticated: !!user && !!profile,
     login, verifyMfa, cancelMfa: () => setMfaChallenge(null), logout, refresh, applySession, clearNotice: () => setNotice(''),
-  }), [user, profile, restrictions, sessionInfo, notice, mfaChallenge, loading, logout, refresh, applySession]);
+  }), [user, profile, restrictions, sessionInfo, notice, mfaChallenge, loading, logout, refresh, applySession, showWelcomeTour, dismissWelcomeTour]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

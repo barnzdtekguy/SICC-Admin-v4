@@ -1,42 +1,45 @@
 'use strict';
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
+const { promisify } = require('node:util');
+const { validatePassword } = require('../../shared/password-policy.mjs');
 
-const COST = 12;
-const COMMON = ['password', 'passw0rd', 'qwerty', 'letmein', 'welcome', 'admin', 'church', 'salem', 'sicc', 'jesus', 'christ', 'blessed', 'godisgood', 'iloveyou', 'abc123', '123456', '111111', 'lagos', 'nigeria', 'bishop', 'pastor', 'hallelujah', 'amen', 'prayer'];
+const PBKDF2_ROUNDS = 600000;
+const HASH_PREFIX = `pbkdf2-sha256$${PBKDF2_ROUNDS}$`;
+const legacyBcrypt = /^\$2[aby]?\$/;
+const deriveKey = promisify(crypto.pbkdf2);
+const encode = (salt, key) => HASH_PREFIX + salt.toString('base64url') + '$' + key.toString('base64url');
 
-function hasSequence(pw) {
-  const lower = pw.toLowerCase();
-  const runs = ['0123456789', 'abcdefghijklmnopqrstuvwxyz', 'qwertyuiop', 'asdfghjkl', 'zxcvbnm'];
-  return runs.some(run => {
-    for (let i = 0; i + 5 <= run.length; i += 1) {
-      const chunk = run.slice(i, i + 5);
-      if (lower.includes(chunk) || lower.includes([...chunk].reverse().join(''))) return true;
-    }
-    return false;
-  });
+// New hashes use the full password. Existing bcrypt hashes remain valid.
+async function hashPassword(password) {
+  const salt = crypto.randomBytes(16);
+  return encode(salt, await deriveKey(password, salt, PBKDF2_ROUNDS, 32, 'sha256'));
 }
 
-// Returns an error message, or null when the password is acceptable.
-function validatePassword(password, { email = '', name = '', username = '' } = {}) {
-  const pw = String(password || '');
-  if (pw.length < 12) return 'Use at least 12 characters.';
-  if (pw.length > 128) return 'Use 128 characters or fewer.';
-  if (/^(.)\1+$/.test(pw)) return 'Do not repeat a single character.';
-  const classes = [/[a-z]/, /[A-Z]/, /[0-9]/, /[^A-Za-z0-9]/].filter(re => re.test(pw)).length;
-  if (classes < 3 && pw.length < 16) return 'Mix at least three of: lowercase, UPPERCASE, numbers, symbols (or use 16+ characters).';
-  const lower = pw.toLowerCase();
-  if (COMMON.some(word => lower.includes(word))) return 'That password contains a very common word. Choose something less guessable.';
-  if (hasSequence(pw)) return 'Avoid keyboard or alphabet sequences such as 12345 or qwerty.';
-  const tokens = [String(email ?? '').split('@')[0], username, ...String(name ?? '').split(/\s+/)].map(t => String(t || '').toLowerCase()).filter(t => t.length >= 4);
-  if (tokens.some(t => lower.includes(t))) return 'Do not include your name, username or email in the password.';
-  return null;
+async function verifyPassword(password, hash) {
+  if (typeof hash !== 'string' || typeof password !== 'string') return false;
+  if (legacyBcrypt.test(hash)) return bcrypt.compare(password, hash);
+  if (!hash.startsWith(HASH_PREFIX)) return false;
+  const [saltPart, keyPart] = hash.slice(HASH_PREFIX.length).split('$');
+  if (!/^[\w-]{22}$/.test(saltPart) || !/^[\w-]{43}$/.test(keyPart)) return false;
+  const salt = Buffer.from(saltPart, 'base64url');
+  const key = Buffer.from(keyPart, 'base64url');
+  return crypto.timingSafeEqual(await deriveKey(password, salt, PBKDF2_ROUNDS, 32, 'sha256'), key);
 }
 
-const hashPassword = password => bcrypt.hash(String(password), COST);
-const verifyPassword = (password, hash) => bcrypt.compare(String(password), hash);
-// Compared against when an account does not exist so response time does not reveal it.
-const DUMMY_HASH = bcrypt.hashSync('timing-equaliser-not-a-real-password', COST);
+const DUMMY_BCRYPT = bcrypt.hashSync('timing-equaliser-not-a-real-password', 12);
+const DUMMY_PBKDF2 = encode(crypto.randomBytes(16), crypto.randomBytes(32));
+
+async function verifyLoginPassword(password, hash) {
+  // Do comparable work for both hash formats and unknown accounts.
+  const legacy = legacyBcrypt.test(hash || '');
+  const modern = typeof hash === 'string' && hash.startsWith(HASH_PREFIX);
+  const [legacyMatch, modernMatch] = await Promise.all([
+    verifyPassword(password, legacy ? hash : DUMMY_BCRYPT),
+    verifyPassword(password, modern ? hash : DUMMY_PBKDF2),
+  ]);
+  return (legacy && legacyMatch) || (modern && modernMatch);
+}
 
 function generateTempPassword() {
   const sets = ['ABCDEFGHJKLMNPQRSTUVWXYZ', 'abcdefghijkmnpqrstuvwxyz', '23456789', '!@#$%*?'];
@@ -50,4 +53,4 @@ function generateTempPassword() {
   return chars.join('');
 }
 
-module.exports = { validatePassword, hashPassword, verifyPassword, generateTempPassword, DUMMY_HASH };
+module.exports = { validatePassword, hashPassword, verifyPassword, verifyLoginPassword, generateTempPassword };
