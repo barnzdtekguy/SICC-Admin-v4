@@ -119,6 +119,28 @@ describe('Operation R.E.D. onboarding', () => {
     team_total: 2, team_target: 6 };
   const signedOut = [{ error: 'Please sign in to continue.' }, 401];
 
+  it.each([
+    ['leader before noon', leader, '2027-04-22T10:59:00Z', 'Good morning, Ada'],
+    ['member at noon', member, '2027-04-22T11:00:00Z', 'Good afternoon, Bola'],
+    ['leader at five', { ...leader, name: 'Pastor Ada Leader' }, '2027-04-22T16:00:00Z', 'Good evening, Ada'],
+    ['member without a first name', { ...member, name: '  ' }, '2027-04-22T16:00:00Z', 'Good evening'],
+  ])('shows the Lagos greeting on the R.E.D. dashboard for a %s', async (_case, profile, time, greeting) => {
+    vi.setSystemTime(new Date(time));
+    try {
+      mockApi({ '/auth/me': session(profile), '/red/team': team, '/red/dashboard': progress });
+      goto('/app/overview');
+      render(<App />);
+      const pageHeading = await screen.findByRole('heading', { name: 'Operation R.E.D.', level: 1 });
+      const card = await screen.findByRole('region', { name: greeting });
+      expect(pageHeading.compareDocumentPosition(card) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      expect(within(card).getByRole('heading', { name: greeting, level: 2 })).toBeInTheDocument();
+      expect(within(card).getByText('Here is your progress in the work God has entrusted to you through Operation R.E.D., as of today.')).toBeInTheDocument();
+      expect(within(card).getByText('Personal monthly target')).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('signs up a leader with a phone and opens the private dashboard', async () => {
     const calls = mockApi({
       '/auth/me': signedOut,

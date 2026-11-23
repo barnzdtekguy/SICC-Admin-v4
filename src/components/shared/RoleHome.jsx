@@ -10,6 +10,24 @@ const localHour = new Intl.DateTimeFormat('en-GB', { timeZone: 'Africa/Lagos', h
 const icon = { size: 20, strokeWidth: 1.75, 'aria-hidden': true };
 const metric = (value, suffix = '') => value == null ? '—' : typeof value === 'string' ? value : number.format(value) + suffix;
 
+export function welcomeGreeting(name, now = new Date()) {
+  const hour = Number(localHour.format(now));
+  const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+  const firstName = name?.trim().replace(/^(Archbishop|Bishop|Pastor|Pst\.?|Rev\.?|Dr\.?)(?:\s+|$)/i, '').split(/\s+/)[0];
+  return firstName ? `${greeting}, ${firstName}` : greeting;
+}
+
+export function RoleHomeHero({ children, action, labelledBy }) {
+  return (
+    <div className="role-home-hero-backdrop">
+      <section className="role-home-hero" aria-labelledby={labelledBy}>
+        <div>{children}</div>
+        {action}
+      </section>
+    </div>
+  );
+}
+
 export function useHomeData(load) {
   const [data, setData] = useState(null);
   const [revision, setRevision] = useState(0);
@@ -91,28 +109,22 @@ export default function RoleHome({ hero, stats, chart, attention, shortcuts, loa
   const { profile } = useAuth();
   const id = useId();
   const now = new Date();
-  const hour = Number(localHour.format(now));
-  const firstName = profile.name?.trim().replace(/^(Archbishop|Bishop|Pastor|Pst\.?|Rev\.?|Dr\.?)\s+/i, '').split(/\s+/)[0];
-  const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
   const HeroIcon = hero.action.Icon;
   return (
     <div className="role-home" aria-busy={loading}>
       <div className="role-home-greeting">
-        <h1 className="display">{firstName ? `${greeting}, ${firstName}.` : `${greeting}.`}</h1>
+        <h1 className="display role-home-greeting-title">{welcomeGreeting(profile.name, now)}.</h1>
         <p><CalendarDays {...icon} /><time dateTime={dateKey.format(now)}>{date.format(now)}</time></p>
       </div>
-      <div className="role-home-hero-backdrop">
-        <section className="role-home-hero" aria-labelledby={`${id}-hero`}>
-          <div>
-            <h2 id={`${id}-hero`}>{hero.label}</h2>
-            <p className="display role-home-hero-number">{metric(hero.value)}</p>
-            {hero.note && <p className="role-home-hero-note">{hero.note}</p>}
-          </div>
-          <Action className="role-home-primary" to={hero.action.to} onClick={hero.action.onClick}>
-            {HeroIcon && <HeroIcon {...icon} />} {hero.action.label}
-          </Action>
-        </section>
-      </div>
+      <RoleHomeHero labelledBy={`${id}-hero`} action={
+        <Action className="role-home-primary" to={hero.action.to} onClick={hero.action.onClick}>
+          {HeroIcon && <HeroIcon {...icon} />} {hero.action.label}
+        </Action>
+      }>
+        <h2 id={`${id}-hero`}>{hero.label}</h2>
+        <p className="display role-home-hero-number">{metric(hero.value)}</p>
+        {hero.note && <p className="role-home-hero-note">{hero.note}</p>}
+      </RoleHomeHero>
       {error && (
         <div className="role-home-error" role="status">
           Some dashboard data is unavailable.

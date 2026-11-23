@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Alert, Badge, Btn, C, Spinner } from '../shared/UI';
+import { RoleHomeHero } from '../shared/RoleHome';
 
 const timestamp = value => Date.parse(value?.includes('T') ? value : `${value?.replace(' ', 'T')}Z`);
 const clock = new Intl.DateTimeFormat('en-NG', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Africa/Lagos' });
@@ -11,12 +12,10 @@ export function RedLoading({ children = 'Loading Operation R.E.D.…' }) {
 
 export function RedHero({ title, children, action }) {
   return (
-    <div className="role-home-hero-backdrop">
-      <section className="role-home-hero">
-        <div><h1 className="display">{title}</h1>{children}</div>
-        {action}
-      </section>
-    </div>
+    <RoleHomeHero action={action}>
+      <h1 className="display">{title}</h1>
+      {children}
+    </RoleHomeHero>
   );
 }
 

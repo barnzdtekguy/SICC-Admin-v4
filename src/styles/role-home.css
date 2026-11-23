@@ -8,7 +8,7 @@
   gap: 8px 24px;
   flex-wrap: wrap;
 }
-.role-home-greeting h1 { font-size: 32px; line-height: 1.04; overflow-wrap: anywhere; }
+.role-home-greeting-title { font-size: 32px; line-height: 1.04; overflow-wrap: anywhere; }
 .role-home-greeting p { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 12px; }
 .role-home-greeting svg { width: 16px; height: 16px; }
 
@@ -166,7 +166,7 @@ body:has(.floating-card-layer, .sicc-modal-overlay) .role-home-hero {
 @media (max-width: 860px) {
   .role-home { gap: 16px; }
   .role-home-greeting { row-gap: 4px; }
-  .role-home-greeting h1 { flex-basis: 100%; font-size: 30px; }
+  .role-home-greeting-title { flex-basis: 100%; font-size: 30px; }
   .role-home-hero { padding: 16px; min-height: 148px; gap: 8px; }
   .role-home-hero-number { font-size: 60px; }
   .role-home-primary { padding-inline: 8px; font-size: 12px; gap: 4px; }
