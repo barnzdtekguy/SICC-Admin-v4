@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { apiRequest } from '../../lib/api';
-import { Alert, Badge, Btn, C, ConfirmDialog, Input, Panel, Select } from '../shared/UI';
+import { Alert, Btn, C, ConfirmDialog, Input, Panel, Select } from '../shared/UI';
 import { InviteStatus, RedHero, RedLoading, RedProblem, ShareLink, formatRedTimestamp } from './RedShared';
+import RedCommand, { CommandTeam } from './RedCommand';
 import '../../styles/red.css';
 
 const capacities = [1, 5, 10, 25, 50].map(value => ({ value: String(value), label: String(value) }));
@@ -46,7 +48,7 @@ function SettingsForm({ settings, onSaved }) {
   );
 }
 
-function LeaderInvitations({ defaultCapacity }) {
+function LeaderInvitations({ defaultCapacity, initialId }) {
   const [capacityOverride, setCapacity] = useState(null);
   const capacity = capacityOverride ?? String(defaultCapacity);
   const [invites, setInvites] = useState(null);
@@ -62,6 +64,13 @@ function LeaderInvitations({ defaultCapacity }) {
     apiRequest('/red/leader-invites').then(data => { if (mounted) setInvites(data); }).catch(problem => { if (mounted) setError(problem); });
     return () => { mounted = false; };
   }, []);
+  useEffect(() => {
+    if (!initialId) return undefined;
+    let mounted = true;
+    apiRequest(`/red/leader-invites/${encodeURIComponent(initialId)}`).then(data => { if (mounted) setDetail(data); })
+      .catch(problem => { if (mounted) setError(problem); });
+    return () => { mounted = false; };
+  }, [initialId]);
 
   const act = async (action, id) => {
     setError(null);
@@ -145,58 +154,11 @@ function LeaderInvitations({ defaultCapacity }) {
   );
 }
 
-function TeamDirectory() {
-  const [teams, setTeams] = useState(null);
-  const [error, setError] = useState(null);
-  const [pending, setPending] = useState(false);
-  const [confirm, setConfirm] = useState(null);
-  const [all, setAll] = useState(false);
-  useEffect(() => {
-    let mounted = true;
-    apiRequest('/red/admin/teams').then(data => { if (mounted) setTeams(data); }).catch(problem => { if (mounted) setError(problem); });
-    return () => { mounted = false; };
-  }, []);
-  const reload = async id => {
-    setError(null);
-    setPending(true);
-    setConfirm(null);
-    try {
-      if (id) await apiRequest(`/red/admin/teams/${id}/deactivate`, { method: 'POST' });
-      setTeams(await apiRequest('/red/admin/teams'));
-    } catch (problem) { setError(problem); }
-    finally { setPending(false); }
-  };
-  return (
-    <Panel title="Registered teams">
-      <div className="red-stack">
-        {error && <Alert type="error" message={error.message} />}
-        {teams === null && !error && <RedLoading>Loading teams…</RedLoading>}
-        {teams?.length === 0 && <p>No teams have signed up yet.</p>}
-        {teams?.length > 0 && (
-          <ul className="red-list">
-            {(all ? teams : teams.slice(0, 5)).map(team => (
-              <li key={team.id}>
-                <div><strong>{team.leader_name}</strong><p>{team.joined} of {team.seat_limit} joined</p></div>
-                <div className="red-actions">
-                  <Badge label={team.deactivated_at ? 'Deactivated' : 'Active'} color={team.deactivated_at ? C.textSecondary : C.success} />
-                  {!team.deactivated_at && <Btn size="sm" variant="outline" color={C.danger} disabled={pending} onClick={() => setConfirm(team)}>Deactivate team</Btn>}
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
-        <div className="red-actions">
-          {teams?.length > 5 && <Btn variant="outline" onClick={() => setAll(previous => !previous)}>{all ? 'Show latest five' : `Show all ${teams.length} teams`}</Btn>}
-          <Btn variant="outline" disabled={pending} onClick={() => reload()}>Refresh teams</Btn>
-        </div>
-      </div>
-      {confirm && <ConfirmDialog title="Deactivate this team?" message={`${confirm.leader_name} and their team members will be signed out, and their join link will stop working.`}
-        confirmLabel="Deactivate team" danger onConfirm={() => reload(confirm.id)} onCancel={() => setConfirm(null)} />}
-    </Panel>
-  );
-}
-
 export default function RedAdmin() {
+  const [search, setSearch] = useSearchParams();
+  const invite = search.get('invite');
+  const team = search.get('team');
+  const mode = invite ? 'invitations' : search.get('view') || 'live';
   const [settings, setSettings] = useState(null);
   const [error, setError] = useState(null);
   const [attempt, setAttempt] = useState(0);
@@ -207,15 +169,26 @@ export default function RedAdmin() {
   }, [attempt]);
   if (error) return <RedProblem error={error} retry={() => { setError(null); setAttempt(previous => previous + 1); }} />;
   if (!settings) return <RedLoading />;
+  const openTeam = id => setSearch({ team: id });
+  const selectMode = view => setSearch(view === 'live' ? {} : { view });
+  const navigation = (
+    <nav className="red-actions" aria-label="Operation R.E.D. management">
+      {[['live', 'Live teams'], ['invitations', 'Leader invitations'], ['settings', 'Campaign settings']].map(([view, label]) => (
+        <Btn key={view} variant={mode === view ? 'solid' : 'outline'} onClick={() => selectMode(view)}>{label}</Btn>
+      ))}
+    </nav>
+  );
   return (
     <div className="red-page">
-      <RedHero title="Operation R.E.D.">
-        <p className="role-home-hero-note">Project 3000 by Love Revolution</p>
-        <p>Campaign starts {dateLabel(settings.campaign_start)} · Final report opens {dateLabel(settings.final_report_opens)}</p>
-      </RedHero>
-      <LeaderInvitations defaultCapacity={settings.leader_link_capacity} />
-      <TeamDirectory />
-      <SettingsForm settings={settings} onSaved={setSettings} />
+      {team ? <CommandTeam key={team} id={team} onBack={() => selectMode('live')} /> : mode === 'invitations' || mode === 'settings' ? (
+        <>
+          <RedHero title="Operation R.E.D.">
+            <p>Campaign start {dateLabel(settings.campaign_start)} · Final report opens {dateLabel(settings.final_report_opens)}</p>
+          </RedHero>
+          {navigation}
+          {mode === 'invitations' ? <LeaderInvitations defaultCapacity={settings.leader_link_capacity} initialId={invite} /> : <SettingsForm settings={settings} onSaved={setSettings} />}
+        </>
+      ) : <RedCommand settings={settings} navigation={navigation} onOpenTeam={openTeam} />}
     </div>
   );
 }

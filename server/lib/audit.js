@@ -83,6 +83,10 @@ async function auditTransaction(req, work) {
       try {
         await conn.beginTransaction();
         const { data, event } = await work(conn);
+        if (!event) {
+          await conn.commit();
+          return data;
+        }
         return await withAuditLock(conn, async () => {
           await appendAudit(conn, req, event);
           await conn.commit();

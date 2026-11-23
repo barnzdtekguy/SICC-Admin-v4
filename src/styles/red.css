@@ -22,3 +22,33 @@
 .red-invite-brand { display: flex; gap: 10px; align-items: center; margin-bottom: 16px; }
 .red-invite-brand img { object-fit: contain; }
 .red-loading { display: flex; align-items: center; gap: 8px; color: var(--muted); }
+.red-chart { min-width: 0; min-height: 216px; }
+.red-pace { color: var(--muted); font-size: 13px; font-weight: 600; }
+.red-pace[data-pace='on_pace'] { color: var(--status-success); }
+.red-pace[data-pace='behind'] { color: var(--status-danger); }
+.red-details { display: grid; grid-template-columns: minmax(70px, 1fr) minmax(0, 2fr); gap: 8px 16px; }
+.red-details dt { color: var(--muted); }
+.red-details dd { margin: 0; overflow-wrap: anywhere; }
+.red-goal-meter { display: block; width: min(320px, 100%); margin: 12px 0 8px; accent-color: var(--accent-chart); }
+.red-history { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(52px, 100%), 1fr)); gap: 12px 8px; padding: 0; list-style: none; }
+.red-history li { display: grid; gap: 4px; justify-items: center; text-align: center; min-width: 0; font-size: 13px; }
+.red-history li small { color: var(--muted); }
+.red-history li[data-pace='on_pace'] small:last-child { color: var(--status-success); }
+.red-history li[data-pace='behind'] small:last-child { color: var(--status-danger); }
+.red-history-bar { height: 42px; width: 16px; position: relative; border-radius: 8px; overflow: hidden; background: var(--hover); }
+.red-history-bar::after { content: ''; position: absolute; inset: auto 0 0; height: var(--value); border-radius: inherit; background: var(--muted); }
+.red-history li[data-pace='on_pace'] .red-history-bar::after { background: var(--status-success); }
+.red-history li[data-pace='behind'] .red-history-bar::after { background: var(--status-danger); }
+.red-trend-cell { display: grid; gap: 4px; min-width: 0; }
+.red-sparkline { display: flex; align-items: flex-end; gap: 4px; height: 22px; max-width: 112px; color: var(--muted); }
+.red-sparkline[data-pace='on_pace'] { color: var(--status-success); }
+.red-sparkline[data-pace='behind'] { color: var(--status-danger); }
+.red-sparkline span { flex: 1 1 0; height: var(--value); border-radius: 2px; background: currentColor; }
+.red-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; min-width: 0; }
+.red-stats > * { min-width: 0; }
+.red-overview { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.red-overview > * { min-width: 0; }
+@media (max-width: 860px) {
+  .red-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .red-overview { grid-template-columns: minmax(0, 1fr); }
+}

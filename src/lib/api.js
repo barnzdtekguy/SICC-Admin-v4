@@ -14,16 +14,18 @@ export class ApiError extends Error {
 const QUEUEABLE = [/^\/attendance$/, /^\/programme-attendance-records$/];
 
 export async function apiRequest(path, options = {}) {
-  const { method = 'GET', body, queueable = false, signal } = options;
+  const { method = 'GET', body, queueable = false, queueOwner, signal } = options;
   const headers = { 'X-SICC-Client': 'web' };
   if (body !== undefined) headers['Content-Type'] = 'application/json';
+  if (queueOwner && path === '/red/souls' && method === 'POST') headers['X-SICC-Queue-Owner'] = queueOwner;
 
   let response;
   try {
     response = await fetch(`/api${path}`, { method, credentials: 'include', headers, signal, body: body === undefined ? undefined : JSON.stringify(body) });
   } catch {
-    if (queueable && method === 'POST' && QUEUEABLE.some(re => re.test(path))) {
-      const queued = await enqueueIfOffline({ path, method, body });
+    const redEntry = queueOwner && path === '/red/souls';
+    if (queueable && method === 'POST' && (redEntry || QUEUEABLE.some(re => re.test(path)))) {
+      const queued = await enqueueIfOffline({ path, method, body, ...(redEntry ? { ownerId: queueOwner } : {}) });
       if (queued) return { queued: true, offline: true, ...body };
     }
     throw new ApiError('You appear to be offline. Check your connection and try again.', { code: 'network' });

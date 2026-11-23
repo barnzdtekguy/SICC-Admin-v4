@@ -8,6 +8,7 @@ const { todayStr } = require('./http');
 const { PRIVILEGED } = require('./permissions');
 const { sendSms, toIntlNumber } = require('./lib/messaging');
 const { decrypt } = require('./lib/crypto');
+const { weeklyRedReminders } = require('./lib/red-reminders');
 
 async function runOncePerDay(key, fn) {
   const today = todayStr();
@@ -42,6 +43,8 @@ async function tick() {
     await runOncePerDay('job.daily_digest', dailyDigest);
     await runOncePerDay('job.session_purge', purgeOldSessions);
   } catch (error) { console.error('[jobs] failed:', error.message); }
+  try { await weeklyRedReminders(); }
+  catch (error) { console.error('[jobs] R.E.D. reminders failed:', error.message); }
 }
 
 function startJobs() {

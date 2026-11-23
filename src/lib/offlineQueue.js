@@ -2,8 +2,9 @@
 // Replays are safe: the server rejects duplicates (409), which we treat as "already saved".
 const DB = 'sicc-outbox';
 const STORE = 'items';
-const listeners = new Set();
+const listeners = new Map();
 const isRetired = item => item.retired || item.path === '/greatness/attendance';
+const matchesOwner = (item, ownerId) => ownerId ? item.ownerId === ownerId : !item.ownerId;
 
 const open = () => new Promise((resolve, reject) => {
   if (typeof indexedDB === 'undefined') { reject(new Error('IndexedDB unavailable')); return; }
@@ -23,35 +24,72 @@ const tx = async (mode, fn) => {
   });
 };
 
-const notify = async () => { const n = await pendingCount(); listeners.forEach(fn => fn(n)); };
+const queuedItems = () => tx('readonly', s => s.getAll()).catch(() => []);
+const scopedItems = (items, ownerId) => items.filter(item => !isRetired(item) && matchesOwner(item, ownerId));
+const notify = async () => {
+  const items = await queuedItems();
+  listeners.forEach((ownerId, listener) => {
+    const scoped = scopedItems(items, ownerId);
+    listener(ownerId ? scoped : scoped.length);
+  });
+};
 
 export async function pendingCount() {
-  try { return (await tx('readonly', s => s.getAll())).filter(item => !isRetired(item)).length; } catch { return 0; }
+  return scopedItems(await queuedItems()).length;
 }
 
-export function onQueueChange(fn) { listeners.add(fn); pendingCount().then(fn); return () => listeners.delete(fn); }
+export function onQueueChange(fn) { return subscribe(fn, null); }
+export function onRedQueueChange(ownerId, fn) { return subscribe(fn, ownerId); }
+
+function subscribe(fn, ownerId) {
+  listeners.set(fn, ownerId);
+  queuedItems().then(items => {
+    if (!listeners.has(fn)) return;
+    const scoped = scopedItems(items, ownerId);
+    fn(ownerId ? scoped : scoped.length);
+  });
+  return () => listeners.delete(fn);
+}
 
 export async function enqueueIfOffline(item) {
   if (navigator.onLine) return false; // a real server error is not an offline case
   try { await tx('readwrite', s => s.add({ ...item, queuedAt: new Date().toISOString() })); await notify(); return true; } catch { return false; }
 }
 
-let flushing = false;
-export async function flushQueue() {
-  if (flushing || !navigator.onLine) return { sent: 0, failed: 0 };
-  flushing = true;
+export async function removeRedQueueItem(ownerId, id) {
+  const item = (await queuedItems()).find(entry => entry.id === id && entry.ownerId === ownerId);
+  if (!item) return;
+  await tx('readwrite', s => s.delete(item.id));
+  await notify();
+}
+
+const flushing = new Set();
+export async function flushQueue(ownerId = null) {
+  if (flushing.has(ownerId) || !navigator.onLine) return { sent: 0, failed: 0 };
+  flushing.add(ownerId);
   let sent = 0; let failed = 0;
   try {
-    const items = await tx('readonly', s => s.getAll());
+    const items = scopedItems(await queuedItems(), ownerId);
     for (const item of items) {
-      if (isRetired(item)) continue;
+      if (item.failure) continue;
       try {
-        const response = await fetch(`/api${item.path}`, { method: item.method, credentials: 'include', headers: { 'Content-Type': 'application/json', 'X-SICC-Client': 'web' }, body: JSON.stringify(item.body) });
-        if (response.ok || [400, 409, 423].includes(response.status)) { await tx('readwrite', s => s.delete(item.id)); sent += response.ok ? 1 : 0; failed += response.ok ? 0 : 1; }
+        const headers = { 'Content-Type': 'application/json', 'X-SICC-Client': 'web' };
+        if (ownerId) headers['X-SICC-Queue-Owner'] = ownerId;
+        const response = await fetch(`/api${item.path}`, { method: item.method, credentials: 'include', headers, body: JSON.stringify(item.body) });
+        if (ownerId) {
+          if (response.ok) { await tx('readwrite', s => s.delete(item.id)); sent++; }
+          else if ([400, 409].includes(response.status)) {
+            const result = await response.json();
+            await tx('readwrite', s => s.put({ ...item, failure: result.error || 'Review this entry before trying again.' }));
+            failed++;
+          } else break;
+        } else if (response.ok || [400, 409, 423].includes(response.status)) { await tx('readwrite', s => s.delete(item.id)); sent += response.ok ? 1 : 0; failed += response.ok ? 0 : 1; }
         else if (response.status === 410) { await tx('readwrite', s => s.put({ ...item, retired: true })); failed += 1; }
         else if (response.status === 401) break; // signed out: keep the items, try after sign-in
       } catch { break; }
     }
-  } catch { /* storage unavailable (e.g. private browsing): nothing to send */ } finally { flushing = false; await notify(); }
+  } catch { /* storage unavailable (e.g. private browsing): nothing to send */ }
+  finally { flushing.delete(ownerId); await notify(); }
+  if (ownerId && sent) window.dispatchEvent(new CustomEvent('sicc:red-queue-sent', { detail: ownerId }));
   return { sent, failed };
 }

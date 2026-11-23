@@ -9,3 +9,8 @@ configure({ asyncUtilTimeout: 3000 });
 window.matchMedia = window.matchMedia || (() => ({ matches: false, addEventListener() {}, removeEventListener() {} }));
 window.scrollTo = () => {};
 Element.prototype.scrollTo = () => {};
+globalThis.ResizeObserver ??= class ResizeObserver {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+};

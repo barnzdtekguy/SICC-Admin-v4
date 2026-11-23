@@ -22,6 +22,12 @@ async function query(sql, values = []) {
   return rows;
 }
 
+async function queryOn(connection, sql, values = []) {
+  if (!connection) return query(sql, values);
+  const [rows] = await connection.execute(sql, values);
+  return rows;
+}
+
 // DDL and multi-use statements that cannot be prepared.
 async function rawQuery(sql, values = []) {
   const [rows] = await pool.query(sql, values);
@@ -50,4 +56,4 @@ function int(value, { min = 0, max = 1000000, fallback = 0 } = {}) {
   return Math.min(max, Math.max(min, n));
 }
 
-module.exports = { pool, query, rawQuery, transaction, int };
+module.exports = { pool, query, queryOn, rawQuery, transaction, int };

@@ -297,6 +297,19 @@ const migrations = [
       await runSqlFile('red-phase-1.sql');
     },
   },
+  { id: '012_red_souls', up: async () => runSqlFile('red-souls.sql') },
+  {
+    id: '013_red_reports',
+    up: async () => {
+      await addColumn('members', 'email', 'VARCHAR(254) NULL');
+      await addColumn('members', 'red_soul_id', 'CHAR(36) NULL');
+      await addColumn('members', 'red_winner_id', 'CHAR(36) NULL');
+      await addColumn('members', 'red_team_id', 'CHAR(36) NULL');
+      await addIndex('members', 'members_red_soul_unique', 'red_soul_id', { unique: true });
+      await runSqlFile('red-reports.sql');
+    },
+  },
+  { id: '014_red_reminders', up: async () => runSqlFile('red-reminders.sql') },
 ];
 
 // Belt and braces: block edits/deletes of audit rows at the database level where the host allows triggers.

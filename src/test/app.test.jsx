@@ -114,6 +114,9 @@ describe('Operation R.E.D. onboarding', () => {
   const leader = { ...PASTOR, id: 'red-leader', name: 'Ada Leader', email: null, role: 'red_leader' };
   const member = { ...PASTOR, id: 'red-member', name: 'Bola Member', email: null, role: 'red_member' };
   const team = { id: 'team-id', leader_name: leader.name, joined: 2, seat_limit: 5 };
+  const progress = { month: '2026-11-01', current: 1, target: 3, can_add: true,
+    pace: { state: 'behind', label: 'Behind by 1' }, trend: [], roster: [{ ...leader, total: 1 }],
+    team_total: 2, team_target: 6 };
   const signedOut = [{ error: 'Please sign in to continue.' }, 401];
 
   it('signs up a leader with a phone and opens the private dashboard', async () => {
@@ -122,6 +125,7 @@ describe('Operation R.E.D. onboarding', () => {
       'POST /public/red/leader-invites/inspect': { kind: 'leader' },
       'POST /public/red/leader-invites/accept': [session(leader), 201],
       '/red/team': { ...team, members: [{ ...leader, joined_at: '2026-11-23 10:00:00' }] },
+      '/red/dashboard': progress,
     });
     const user = userEvent.setup();
     goto(`/red/invite/leader#${token}`);
@@ -174,7 +178,7 @@ describe('Operation R.E.D. onboarding', () => {
   });
 
   it('supports phone sign-in and keeps a member out of church screens and leader actions', async () => {
-    const calls = mockApi({ '/auth/me': signedOut, 'POST /auth/login': session(member), '/red/team': team });
+    const calls = mockApi({ '/auth/me': signedOut, 'POST /auth/login': session(member), '/red/team': team, '/red/dashboard': progress });
     const user = userEvent.setup();
     goto('/app/members');
     render(<App />);
@@ -188,6 +192,101 @@ describe('Operation R.E.D. onboarding', () => {
     expect(screen.queryByRole('button', { name: 'Open join link' })).toBeNull();
     expect(calls.find(call => call.path === '/auth/login').body.identifier).toBe('08012345678');
     expect(calls.some(call => ['/members', '/brief', '/red/team/join-link'].includes(call.path))).toBe(false);
+  });
+
+  it('records a soul from the mobile dock with consent and an account-scoped replay key', async () => {
+    vi.spyOn(window, 'matchMedia').mockImplementation(query => ({ matches: query.includes('max-width'), addEventListener() {}, removeEventListener() {} }));
+    const profile = { ...member, id: 'recording-member' };
+    const calls = mockApi({
+      '/auth/me': session(profile),
+      '/red/team': team,
+      '/red/dashboard': progress,
+      'POST /red/souls': [{ id: 'new-soul' }, 201],
+      'GET /red/souls': { items: [{ id: 'new-soul', winner_id: profile.id, full_name: 'New Convert', stage: 'recorded' }], next_offset: null },
+    });
+    const user = userEvent.setup();
+    goto('/app/overview');
+    render(<App />);
+    const dock = await screen.findByRole('navigation', { name: /R.E.D. member mobile/i });
+    await user.click(within(dock).getByRole('button', { name: 'Add soul' }));
+    await user.type(await screen.findByRole('textbox', { name: 'Full name' }), 'New Convert');
+    await user.type(screen.getByRole('textbox', { name: 'Address' }), '23 Mission Road');
+    await user.click(screen.getByRole('button', { name: 'Save soul' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('agreed to be followed up');
+    await user.click(screen.getByRole('checkbox', { name: 'This person agreed to be followed up' }));
+    await user.click(screen.getByRole('button', { name: 'Save soul' }));
+    expect(await screen.findByText('New Convert')).toBeInTheDocument();
+    const posted = calls.find(call => call.path === '/red/souls' && call.method === 'POST');
+    expect(posted.body).toMatchObject({ id: expect.stringMatching(/^[0-9a-f-]{36}$/), consent: true });
+    expect(posted.headers['X-SICC-Queue-Owner']).toBe(profile.id);
+  });
+
+  it('shows aggregate Teams Board counts and a written pace indicator on the mobile route', async () => {
+    mockApi({
+      '/auth/me': session(member),
+      '/red/teams-board': { month: '2026-11-01', total: 20, goal: 3000, teams: [
+        { id: 'other-team', name: 'Another Team Leader', current: 1, target: 6, total: 9, pace: { state: 'behind', label: 'Behind by 3' }, trend: [0, 1] },
+      ] },
+    });
+    goto('/app/red-board');
+    render(<App />);
+    expect(await screen.findByRole('heading', { name: 'Teams Board' })).toBeInTheDocument();
+    expect(screen.getByRole('progressbar', { name: /campaign goal/i })).toHaveAttribute('max', '3000');
+    expect(screen.getAllByText('Another Team Leader').length).toBeGreaterThan(0);
+    const label = screen.getAllByText('Behind by 3')[0];
+    expect(label).toHaveAttribute('data-pace', 'behind');
+    expect(label.textContent).toContain('▼');
+  });
+
+  it('shows the final report only in its window and submits the reviewed version', async () => {
+    const window = { month: '2027-04-01', opens: '2027-04-22', closes: '2027-05-05', final: true };
+    const members = [{ ...leader, total: 3, target: 3, met: true }, { ...member, total: 1, target: 3, met: false }];
+    const summary = { total: 4, target: 6, members };
+    const submitted = { id: 'report', month: window.month, submitted_on: window.opens, summary };
+    let complete = false;
+    const calls = mockApi({
+      '/auth/me': session(leader),
+      '/red/team': team,
+      '/red/dashboard': progress,
+      '/red/souls': { items: [], next_offset: null },
+      '/red/reports': () => ({ available: complete ? [] : [window], submitted: complete ? [submitted] : [] }),
+      'GET /red/reports/2027-04-01': { window, summary, revision: 'same-version' },
+      'POST /red/reports/2027-04-01': () => { complete = true; return [ { ...submitted, created_members: 3, linked_members: 1 }, 201 ]; },
+    });
+    goto('/app/red-team');
+    render(<App />);
+    await userEvent.click(await screen.findByRole('button', { name: 'Submit report' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Review final report' });
+    expect(within(dialog).getByText('Target met')).toBeInTheDocument();
+    expect(within(dialog).getByText('Target missed')).toBeInTheDocument();
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Confirm submission' }));
+    expect(await screen.findByText(/report submitted. 3 new membership records/i)).toBeInTheDocument();
+    expect(await screen.findByText('There is no reporting window open for your team.')).toBeInTheDocument();
+    expect(calls.find(call => call.method === 'POST' && call.path === '/red/reports/2027-04-01').body).toEqual({ revision: 'same-version' });
+  });
+
+  it.each(['bishop', 'admin'])('shows %s the command center with active and overdue teams', async role => {
+    vi.spyOn(window, 'matchMedia').mockImplementation(query => ({ matches: query.includes('max-width'), addEventListener() {}, removeEventListener() {} }));
+    const settings = { campaign_start: '2026-11-20', campaign_end: '2027-04-22', final_report_opens: '2027-04-22' };
+    const period = { month: '2026-11-01', final: false, closes: '2026-12-05' };
+    const tracked = { ...period, status: 'missing', label: 'Missing' };
+    const pace = { state: 'behind', label: 'Behind by 3' };
+    mockApi({
+      '/auth/me': session({ ...PASTOR, role, name: 'Campaign Manager' }),
+      '/red/settings': settings,
+      '/red/admin/command': { total: 25, goal: 3000, expected: 90, remaining: 2975, daily_needed: 25, days_left: 119,
+        report_month: period.month, report_windows: [period], stages: [{ stage: 'recorded', total: 25 }],
+        attention: [{ ...tracked, team_name: 'Ada Leader', team_id: 'team-id' }],
+        teams: [{ ...team, name: 'Ada Leader', current: 7, total: 25, target: 10, pace, report: tracked }],
+      },
+    });
+    goto('/app/red');
+    render(<App />);
+    expect(await screen.findByRole('heading', { name: 'Operation R.E.D.' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Training stages' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Report attention' })).toBeInTheDocument();
+    expect(screen.getAllByText('Missing').length).toBeGreaterThan(0);
+    expect(screen.getByRole('button', { name: 'Export reports CSV' })).toBeInTheDocument();
   });
 });
 

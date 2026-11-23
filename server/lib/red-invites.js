@@ -1,12 +1,14 @@
 'use strict';
 const crypto = require('crypto');
 const { config } = require('../config');
-const { query } = require('../db');
+const { query, queryOn: run } = require('../db');
 const { HttpError, str, validDate } = require('../http');
 const { audit, auditTransaction } = require('./audit');
 const { normalizePhoneLogin } = require('./phone-login');
 const { validatePassword, hashPassword } = require('./password');
 const { createSession } = require('./sessions');
+const { queueRedNotice, deliverRedPush } = require('./red-notifications');
+const { signalTeam } = require('./red-live');
 
 const LEADER_CAPACITIES = [1, 5, 10, 25, 50];
 const settingsFields = {
@@ -18,10 +20,6 @@ const selectInvite = 'SELECT red_invites.*, expires_at <= UTC_TIMESTAMP() AS exp
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const hashToken = token => crypto.createHash('sha256').update(token).digest();
 const memberToken = id => crypto.createHmac('sha256', config.jwtSecret).update(`sicc:red-member-invite:v1:${id}`).digest('base64url');
-
-async function run(conn, sql, params = []) {
-  return conn ? (await conn.execute(sql, params))[0] : query(sql, params);
-}
 
 const eventFor = (action, entity_type, entity_id, extra) => ({ action: `red.${action}`, entity_type, entity_id, ...extra });
 const invalidInvite = kind => new HttpError(404,
@@ -282,7 +280,7 @@ async function acceptInvite(req, kind) {
   const details = signupDetails(req.body);
   const passwordHash = await hashPassword(details.password);
   const role = kind === 'leader' ? 'red_leader' : 'red_member';
-  return auditTransaction(req, async conn => {
+  const result = await auditTransaction(req, async conn => {
     const { invite, team } = await publicContext(kind, token, conn);
     const [existing] = await run(conn, 'SELECT id FROM profiles WHERE phone_login = ? LIMIT 1 FOR UPDATE', [details.phone]);
     if (existing) throw accountUnavailable();
@@ -305,13 +303,30 @@ async function acceptInvite(req, kind) {
     await run(conn, 'UPDATE red_invites SET used_count = used_count + 1 WHERE id = ?', [invite.id]);
     const [profile] = await run(conn, 'SELECT * FROM profiles WHERE id = ?', [profileId]);
     const session = await createSession(profile, { ip: req.ip, userAgent: req.get('user-agent') }, conn);
-    return { data: { profile, session }, event: eventFor(`${kind}_signup`, 'red_team', teamId, {
+    const notice = kind === 'leader'
+      ? await queueRedNotice(conn, {
+        type: 'red_leader_signup', title: 'New Operation R.E.D. team leader', body: `${profile.name} signed up through leader invitation ${invite.id}.`,
+        link: `/app/red?invite=${invite.id}`,
+      }, { management: true })
+      : [
+        await queueRedNotice(conn, {
+          type: 'red_member_join', title: 'New team member', body: `${profile.name} joined your Operation R.E.D. team.`, link: '/app/red-team',
+        }, { people: [team.leader_id] }),
+        await queueRedNotice(conn, {
+          type: 'red_member_join', title: 'New Operation R.E.D. team member', body: `${profile.name} joined a team.`, link: `/app/red?team=${teamId}`,
+        }, { management: true }),
+      ];
+    return { data: { profile, session, notice, teamId }, event: eventFor(`${kind}_signup`, 'red_team', teamId, {
       actor: { id: profile.id, name: profile.name, role: profile.role }, after: { invite_id: invite.id },
     }) };
   });
+  for (const delivery of [result.notice].flat()) deliverRedPush(delivery);
+  if (kind === 'member') signalTeam(result.teamId);
+  return { profile: result.profile, session: result.session };
 }
 
 module.exports = {
   getSettings, saveSettings, listLeaderInvites, readLeaderInvite, createLeaderInvite, revokeLeaderInvite,
   getOwnTeam, readJoinLink, rotateJoinLink, listTeams, deactivateTeam, inspectInvite, declineInvite, acceptInvite,
+  ownTeam, teamById,
 };

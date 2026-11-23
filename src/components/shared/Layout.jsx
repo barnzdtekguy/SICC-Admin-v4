@@ -21,7 +21,7 @@ const ICON = {
   overview: LayoutDashboard, growth: TrendingUp, staff: UserCog, members: ClipboardList, kdf: MapPin, departments: Building2, followups: Phone,
   communication: Radio, reports: BarChart2, assignments: Pin, users: Users, attendance: CheckSquare, settings: Settings, register: PlusCircle,
   myMembers: Users, followup: Phone, deptMembers: Users, kdfMembers: Users, programmes: QrCode, security: ShieldCheck, audit: ScrollText, approvals: Inbox, insights: LineChart,
-  red: Flag, 'red-team': Users, 'red-join': Link2,
+  red: Flag, 'red-team': Users, 'red-join': Link2, 'red-add': PlusCircle, 'red-souls': ClipboardList, 'red-board': BarChart2,
 };
 
 
@@ -34,6 +34,9 @@ const SECURITY = { key: 'security', label: 'Security & devices', group: 'Account
 const RED = { key: 'red', label: 'Operation R.E.D.' };
 const RED_HOME = { key: 'overview', label: 'Operation R.E.D.' };
 const RED_TEAM = { key: 'red-team', label: 'My team' };
+const RED_SOULS = { key: 'red-souls', label: 'My souls' };
+const RED_ADD = { key: 'red-add', label: 'Add soul' };
+const RED_BOARD = { key: 'red-board', label: 'Teams Board' };
 
 export const NAV = {
   [ROLES.BISHOP]: [
@@ -57,8 +60,8 @@ export const NAV = {
   [ROLES.KDF_COORDINATOR]: [
     { key: 'overview', label: 'My dashboard' }, { key: 'kdfMembers', label: 'Area members' }, { key: 'followup', label: 'Follow-up' }, { key: 'reports', label: 'Area reports' }, SECURITY,
   ],
-  [ROLES.RED_LEADER]: [RED_HOME, RED_TEAM, { key: 'red-join', label: 'Join link' }, SECURITY],
-  [ROLES.RED_MEMBER]: [RED_HOME, RED_TEAM, SECURITY],
+  [ROLES.RED_LEADER]: [RED_HOME, RED_SOULS, RED_ADD, RED_BOARD, RED_TEAM, { key: 'red-join', label: 'Join link' }, SECURITY],
+  [ROLES.RED_MEMBER]: [RED_HOME, RED_SOULS, RED_ADD, RED_BOARD, RED_TEAM, SECURITY],
 };
 
 
@@ -68,8 +71,8 @@ const DOCK = {
   [ROLES.BISHOP]: ['members', 'programmes', 'reports'],
   [ROLES.DEPARTMENT_LEADER]: ['deptMembers', 'attendance', 'reports'],
   [ROLES.KDF_COORDINATOR]: ['kdfMembers', 'followup', 'reports'],
-  [ROLES.RED_LEADER]: ['red-team', 'red-join'],
-  [ROLES.RED_MEMBER]: ['red-team', 'security'],
+  [ROLES.RED_LEADER]: ['red-souls', 'red-add', 'red-board'],
+  [ROLES.RED_MEMBER]: ['red-souls', 'red-add', 'red-board'],
 };
 
 const icon = { size: 20, strokeWidth: 1.75, 'aria-hidden': true };
@@ -232,12 +235,12 @@ export default function Layout({ activeTab, setActiveTab, mobile, children }) {
         </main>
 
         {mobile && (
-          <nav className="app-dock no-print" data-red={redAccount || undefined} aria-label={`${roleLabel} mobile navigation`}>
+          <nav className="app-dock no-print" aria-label={`${roleLabel} mobile navigation`}>
             {dockKeys.map((key, index) => {
               const page = nav.find(item => item.key === key);
-              const center = index === 2 && role !== ROLES.RED_MEMBER;
+              const center = index === 2;
               const Icon = key === 'overview' ? Home : ICON[key];
-              const label = index === 0 ? 'Home' : key === 'security' ? 'Security' : index === 1 && !redAccount ? 'Members' : page?.label;
+              const label = index === 0 ? 'Home' : key === 'red-board' ? 'Teams' : index === 1 && !redAccount ? 'Members' : page?.label;
               return (
                 <button key={key} type="button" className={center ? 'app-dock-center' : undefined}
                   onClick={() => go(key)} aria-current={activeTab === key ? 'page' : undefined}>

@@ -44,6 +44,7 @@ const PERMISSIONS = {
   'red.manage': PRIVILEGED,
   'red.participate': RED_ROLES,
   'red.team.manage': ['red_leader'],
+  'red.souls.read': [...RED_ROLES, ...PRIVILEGED],
 };
 
 const can = (role, permission) => (PERMISSIONS[permission] || []).includes(role);

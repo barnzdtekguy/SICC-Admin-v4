@@ -1,6 +1,6 @@
 'use strict';
 const crypto = require('crypto');
-const { query } = require('../db');
+const { query, queryOn } = require('../db');
 const { config } = require('../config');
 
 let webpush = null;
@@ -27,14 +27,18 @@ async function sendPush(userId, payload) {
   }));
 }
 
+async function writeNotification(connection, userId, { type = 'info', title, body = null, link = null }) {
+  await queryOn(connection, 'INSERT INTO notifications (id, user_id, type, title, body, link) VALUES (?, ?, ?, ?, ?, ?)',
+    [crypto.randomUUID(), userId, type, String(title).slice(0, 200), body ? String(body).slice(0, 600) : null, link ? String(link).slice(0, 200) : null]);
+}
+
 // userIds: array of profile ids. Never throws: notifications must not break the main action.
-async function notify(userIds, { type = 'info', title, body = null, link = null }) {
+async function notify(userIds, payload) {
   try {
     const ids = [...new Set((userIds || []).filter(Boolean))];
     for (const userId of ids) {
-      await query('INSERT INTO notifications (id, user_id, type, title, body, link) VALUES (?, ?, ?, ?, ?, ?)',
-        [crypto.randomUUID(), userId, type, String(title).slice(0, 200), body ? String(body).slice(0, 600) : null, link ? String(link).slice(0, 200) : null]);
-      sendPush(userId, { title, body, link, type }).catch(() => {});
+      await writeNotification(null, userId, payload);
+      sendPush(userId, { ...payload, type: payload.type || 'info' }).catch(() => {});
     }
   } catch (error) { console.error('notify failed:', error.message); }
 }
@@ -44,4 +48,4 @@ async function notifyRoles(roles, payload, exceptUserId = null) {
   return notify(rows.map(r => r.id).filter(id => id !== exceptUserId), payload);
 }
 
-module.exports = { notify, notifyRoles, sendPush, pushEnabled: () => Boolean(push()) };
+module.exports = { notify, notifyRoles, writeNotification, sendPush, pushEnabled: () => Boolean(push()) };

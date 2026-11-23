@@ -40,9 +40,9 @@ export function AuthProvider({ children }) {
 
   // Send any attendance that was saved offline once we are signed in and online.
   useEffect(() => {
-    if (!profile || isRedRole(profile.role) || restrictions.length) return undefined;
-    flushQueue();
-    const onOnline = () => flushQueue();
+    if (!profile || restrictions.length) return undefined;
+    const onOnline = () => flushQueue(isRedRole(profile.role) ? profile.id : null);
+    onOnline();
     window.addEventListener('online', onOnline);
     return () => window.removeEventListener('online', onOnline);
   }, [profile, restrictions.length]);

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Phone, MapPin, Building2, Cake, History, UserCheck } from 'lucide-react';
+import { Phone, Mail, MapPin, Building2, Cake, History, UserCheck } from 'lucide-react';
 import { C } from '../../lib/theme';
 import { getMemberTimeline } from '../../lib/db';
 import { StatusBadge, Skeleton, Alert, Modal } from './UI';
@@ -16,7 +16,7 @@ export default function MemberDrawer({ memberId, onClose }) {
     return () => { active = false; };
   }, [memberId]);
   const m = state.data?.member;
-  const row = (icon, text) => text ? <div style={{ display: 'flex', gap: 10, alignItems: 'center', fontSize: 14, color: C.textPrimary }}><span aria-hidden style={{ color: C.textMuted, display: 'flex' }}>{icon}</span>{text}</div> : null;
+  const row = (icon, text) => text ? <div style={{ display: 'flex', gap: 10, alignItems: 'center', fontSize: 14, color: C.textPrimary }}><span aria-hidden style={{ color: C.textMuted, display: 'flex' }}>{icon}</span><span style={{ minWidth: 0, overflowWrap: 'anywhere' }}>{text}</span></div> : null;
   return (
     <Modal title="Member profile" width={440} placement="side" onClose={onClose}>
         {state.loading && <div style={{ display: 'grid', gap: 12, marginTop: 24 }}><Skeleton w={200} h={30} /><Skeleton h={14} /><Skeleton h={14} w="70%" /><Skeleton h={120} /></div>}
@@ -26,7 +26,7 @@ export default function MemberDrawer({ memberId, onClose }) {
             <h2 className="display" style={{ fontSize: 30, color: C.textPrimary, marginTop: 8, paddingRight: 30 }}>{m.first_name} {m.last_name}</h2>
             <div style={{ marginTop: 8, display: 'flex', gap: 8, flexWrap: 'wrap' }}>{m.status && <StatusBadge status={m.status} />}{m.spiritual_status && <span style={{ fontSize: 12, color: C.textSecondary }}>{m.spiritual_status}</span>}</div>
             <div style={{ display: 'grid', gap: 10, margin: '18px 0' }}>
-              {row(<Phone size={15} />, m.phone)}{row(<MapPin size={15} />, [m.kdf_area, m.address].filter(Boolean).join(' · '))}
+              {row(<Phone size={15} />, m.phone)}{row(<Mail size={15} />, m.email)}{row(<MapPin size={15} />, [m.kdf_area, m.address].filter(Boolean).join(' · '))}
               {row(<Building2 size={15} />, m.department)}{row(<Cake size={15} />, m.date_of_birth && `Born ${fmt(String(m.date_of_birth).slice(0, 10))}`)}
               {row(<UserCheck size={15} />, m.registered_by_name && `Registered by ${m.registered_by_name}`)}
             </div>

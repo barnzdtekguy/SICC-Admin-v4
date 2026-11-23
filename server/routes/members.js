@@ -1,12 +1,12 @@
 'use strict';
 const express = require('express');
 const crypto = require('crypto');
-const { query, int } = require('../db');
+const { query, queryOn, int } = require('../db');
 const { config } = require('../config');
 const { asyncRoute, HttpError, sendData, str, oneOf, validDate, todayStr, normalizePhone, phoneLast10, pick } = require('../http');
 const { secured, requirePerm } = require('../middleware');
 const { can, PRIVILEGED } = require('../permissions');
-const { audit, auditThrottled } = require('../lib/audit');
+const { audit, auditThrottled, auditTransaction } = require('../lib/audit');
 const lists = require('../data/lists.json');
 const { notify } = require('../lib/notify');
 
@@ -21,7 +21,11 @@ function scopeFor(profile) {
   if (profile.role === 'kdf_coordinator') return { sql: 'kdf_area = ?', value: profile.kdf_area || null };
   throw new HttpError(403, 'You do not have permission to view member records.');
 }
-const shape = (profile, row) => (HIDE_NOTES.includes(profile.role) ? { ...row, notes: undefined } : row);
+function shape(profile, row) {
+  if (can(profile.role, 'red.manage')) return row;
+  const { red_soul_id: _soul, red_team_id: _team, red_winner_id: _winner, ...record } = row;
+  return HIDE_NOTES.includes(profile.role) ? { ...record, notes: undefined } : record;
+}
 
 async function validateMember(body, { partial = false } = {}) {
   const out = {};
@@ -152,7 +156,7 @@ router.post('/members', ...secured, requirePerm('members.write'), asyncRoute(asy
   await query(`INSERT INTO members (${fields.join(', ')}) VALUES (${fields.map(() => '?').join(', ')})`, fields.map(f => record[f]));
   const created = (await query('SELECT * FROM members WHERE id = ?', [id]))[0];
   await audit(req, { action: 'member.create', entity_type: 'member', entity_id: id, detail: `${created.first_name} ${created.last_name}`, after: created });
-  sendData(res, created, 201);
+  sendData(res, shape(req.profile, created), 201);
 }));
 
 router.patch('/members/:id', ...secured, requirePerm('members.write'), asyncRoute(async (req, res) => {
@@ -163,7 +167,7 @@ router.patch('/members/:id', ...secured, requirePerm('members.write'), asyncRout
   await query(`UPDATE members SET ${fields.map(f => `${f} = ?`).join(', ')}, updated_at = CURRENT_TIMESTAMP, updated_by = ?, updated_by_name = ? WHERE id = ?`, [...fields.map(f => data[f]), req.profile.id, req.profile.name, before.id]);
   const after = (await query('SELECT * FROM members WHERE id = ?', [before.id]))[0];
   await audit(req, { action: 'member.update', entity_type: 'member', entity_id: before.id, detail: `${after.first_name} ${after.last_name}: ${fields.join(', ')}`, before: pick(before, fields), after: pick(after, fields) });
-  sendData(res, after);
+  sendData(res, shape(req.profile, after));
 }));
 
 router.delete('/members/:id', ...secured, requirePerm('members.delete'), asyncRoute(async (req, res) => {
@@ -185,10 +189,13 @@ router.post('/members/:id/restore', ...secured, requirePerm('members.delete'), a
 router.post('/members/:id/anonymize', ...secured, requirePerm('members.anonymize'), asyncRoute(async (req, res) => {
   const member = await loadMember(req, { allowDeleted: true });
   const reason = str(req.body?.reason, { max: 300, required: true, field: 'A reason' });
-  await query(`UPDATE members SET first_name = 'Erased', last_name = 'Member', phone = NULL, phone_last10 = NULL, address = NULL, date_of_birth = NULL, notes = NULL, kdf_coordinator = NULL,
-    deleted_at = COALESCE(deleted_at, CURRENT_TIMESTAMP), deleted_by = ?, delete_reason = ? WHERE id = ?`, [req.profile.id, `Erased: ${reason}`, member.id]);
-  await query("UPDATE follow_ups SET member_name = 'Erased Member', notes = NULL, outcome = NULL WHERE member_id = ?", [member.id]);
-  await audit(req, { action: 'member.anonymize', entity_type: 'member', entity_id: member.id, detail: reason });
+  await auditTransaction(req, async conn => {
+    if (member.red_soul_id) await queryOn(conn, "UPDATE red_souls SET full_name = 'Erased Member', address = 'Erased', phone = NULL, email = NULL WHERE id = ?", [member.red_soul_id]);
+    await queryOn(conn, `UPDATE members SET first_name = 'Erased', last_name = 'Member', phone = NULL, phone_last10 = NULL, email = NULL, address = NULL, date_of_birth = NULL, notes = NULL, kdf_coordinator = NULL,
+      deleted_at = COALESCE(deleted_at, CURRENT_TIMESTAMP), deleted_by = ?, delete_reason = ? WHERE id = ?`, [req.profile.id, `Erased: ${reason}`, member.id]);
+    await queryOn(conn, "UPDATE follow_ups SET member_name = 'Erased Member', notes = NULL, outcome = NULL WHERE member_id = ?", [member.id]);
+    return { event: { action: 'member.anonymize', entity_type: 'member', entity_id: member.id, detail: reason } };
+  });
   sendData(res, { success: true });
 }));
 

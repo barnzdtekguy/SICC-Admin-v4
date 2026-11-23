@@ -25,6 +25,7 @@ const Insights = lazy(() => import('./components/governance/Insights'));
 const RedAdmin = lazy(() => import('./components/red/RedAdmin'));
 const RedTeam = lazy(() => import('./components/red/RedTeam'));
 const RedInvite = lazy(() => import('./components/red/RedInvite'));
+const RedCampaign = lazy(() => import('./components/red/RedCampaign'));
 
 const EXTRA_SCREENS = { security: SecurityCenter, approvals: Approvals, audit: AuditCenter, insights: Insights, red: RedAdmin };
 const PHONE_LAYOUT = '(max-width: 860px)';
@@ -83,7 +84,7 @@ function Dashboard() {
       case ROLES.DEPARTMENT_LEADER: return <DeptDashboard activeTab={tab} />;
       case ROLES.KDF_COORDINATOR: return <KDFDashboard activeTab={tab} />;
       case ROLES.RED_LEADER:
-      case ROLES.RED_MEMBER: return <RedTeam activeTab={tab} setActiveTab={setActiveTab} />;
+      case ROLES.RED_MEMBER: return tab === 'red-join' ? <RedTeam activeTab={tab} setActiveTab={setActiveTab} /> : <RedCampaign activeTab={tab} setActiveTab={setActiveTab} />;
       default: return <div style={{ padding: 40, textAlign: 'center', color: C.textPrimary }}>Your role is not recognised. Please contact an administrator.</div>;
     }
   };

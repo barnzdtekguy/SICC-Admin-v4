@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
-import { Bell, CalendarDays, ClipboardCheck, Inbox, MessageSquare, Phone } from 'lucide-react';
+import { Bell, CalendarDays, ClipboardCheck, Inbox, MessageSquare, Phone, TrendingUp, Users } from 'lucide-react';
 import { getNotifications, markNotificationRead } from '../../lib/db';
 import FloatingCard from './FloatingCard';
 
-const sequenceIcons = { attendance: CalendarDays, approval: ClipboardCheck, followup: Phone, message: MessageSquare };
+const sequenceIcons = { attendance: CalendarDays, approval: ClipboardCheck, followup: Phone, message: MessageSquare,
+  red_leader_signup: Users, red_member_join: Users, red_report_submitted: ClipboardCheck, red_pace_reminder: TrendingUp };
 
 function notificationTime(value) {
   if (!value) return { label: '', dateTime: undefined };
