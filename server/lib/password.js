@@ -28,7 +28,7 @@ function validatePassword(password, { email = '', name = '', username = '' } = {
   const lower = pw.toLowerCase();
   if (COMMON.some(word => lower.includes(word))) return 'That password contains a very common word. Choose something less guessable.';
   if (hasSequence(pw)) return 'Avoid keyboard or alphabet sequences such as 12345 or qwerty.';
-  const tokens = [String(email).split('@')[0], username, ...String(name).split(/\s+/)].map(t => String(t || '').toLowerCase()).filter(t => t.length >= 4);
+  const tokens = [String(email ?? '').split('@')[0], username, ...String(name ?? '').split(/\s+/)].map(t => String(t || '').toLowerCase()).filter(t => t.length >= 4);
   if (tokens.some(t => lower.includes(t))) return 'Do not include your name, username or email in the password.';
   return null;
 }

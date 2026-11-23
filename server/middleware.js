@@ -77,6 +77,8 @@ const limiter = (windowMs, limit, message, keyGenerator) => rateLimit({
 const apiLimiter = limiter(5 * 60 * 1000, 600, 'Too many requests. Please slow down and try again shortly.');
 const loginLimiter = limiter(15 * 60 * 1000, 40, 'Too many sign-in attempts from this network. Try again in a few minutes.');
 const publicCheckInLimiter = limiter(60 * 1000, 12, 'Too many check-in attempts. Please wait a minute.');
+const redInviteLimiter = limiter(5 * 60 * 1000, 50, 'Too many invitation requests. Please try again shortly.');
+const redSignupLimiter = limiter(15 * 60 * 1000, 20, 'Too many sign-up attempts. Please try again shortly.');
 const userKey = req => `u:${req.profile?.id || req.ip}`;
 const exportLimiter = limiter(60 * 60 * 1000, 12, 'Export limit reached. Try again later.', userKey);
 const messageLimiter = limiter(60 * 60 * 1000, 20, 'Message sending limit reached. Try again later.', userKey);
@@ -136,7 +138,8 @@ function requirePerm(permission) {
 
 function publicProfile(profile) {
   const {
-    password_hash, mfa_secret_enc, mfa_pending_secret_enc, mfa_recovery_hashes, mfa_last_step, failed_logins, locked_until, ...safe
+    password_hash, mfa_secret_enc, mfa_pending_secret_enc, mfa_recovery_hashes, mfa_last_step, failed_logins, locked_until,
+    phone_login: _phoneLogin, red_phone_login: _redPhoneLogin, ...safe
   } = profile;
   return { ...safe, mfa_enabled: Boolean(profile.mfa_enabled), must_change_password: Boolean(profile.must_change_password), is_active: Boolean(profile.is_active) };
 }
@@ -154,4 +157,4 @@ function errorHandler(error, req, res, _next) {
   return res.status(status).json({ error: status < 500 ? error.message : 'An unexpected server error occurred.', request_id: req.id, ...(status < 500 ? error.extra : {}) });
 }
 
-module.exports = { requestContext, securityHeaders, permissionsPolicy, originGuard, noStore, apiLimiter, loginLimiter, publicCheckInLimiter, exportLimiter, messageLimiter, authenticate, enforceRestrictions, secured, requirePerm, publicProfile, errorHandler };
+module.exports = { requestContext, securityHeaders, permissionsPolicy, originGuard, noStore, apiLimiter, loginLimiter, publicCheckInLimiter, redInviteLimiter, redSignupLimiter, exportLimiter, messageLimiter, authenticate, enforceRestrictions, secured, requirePerm, publicProfile, errorHandler };

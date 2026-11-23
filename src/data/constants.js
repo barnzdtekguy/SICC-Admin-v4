@@ -2,10 +2,13 @@
 export const ROLES = {
   BISHOP: 'bishop', ADMIN: 'admin', PASTOR: 'pastor',
   DEPARTMENT_LEADER: 'department_leader', KDF_COORDINATOR: 'kdf_coordinator',
+  RED_LEADER: 'red_leader', RED_MEMBER: 'red_member',
 };
+export const isRedRole = role => role === ROLES.RED_LEADER || role === ROLES.RED_MEMBER;
 export const ROLE_LABELS = {
   bishop: 'Bishop', admin: 'Administrator', pastor: 'Pastor',
   department_leader: 'Dept. Leader', kdf_coordinator: 'KDF Coordinator',
+  red_leader: 'R.E.D. leader', red_member: 'R.E.D. member',
 };
 export const ROLE_COLORS = {
   bishop: '#C9A84C', admin: '#185FA5', pastor: '#2E7D32',

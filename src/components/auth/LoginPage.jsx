@@ -7,6 +7,7 @@ import { Mail, Lock, Eye, EyeOff, AlertCircle, UserRound, ArrowRight, Shield, Me
 const tabs = [
   { key: 'email', label: 'Email', placeholder: 'Enter your email address' },
   { key: 'username', label: 'Username', placeholder: 'Enter your username' },
+  { key: 'phone', label: 'Phone', placeholder: 'Enter your phone number' },
 ];
 
 export default function LoginPage({ onBack }) {
@@ -28,13 +29,13 @@ export default function LoginPage({ onBack }) {
   const activeTab = useMemo(() => tabs.find(tab => tab.key === identifierType) || tabs[0], [identifierType]);
   const identifierReady = identifierType === 'email'
     ? /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(identifier.trim())
-    : identifier.trim().length >= 3;
+    : identifierType === 'phone' ? identifier.replace(/\D/g, '').length >= 7 : identifier.trim().length >= 3;
 
   const getLoginError = (rawError) => {
     const message = String(rawError || '').toLowerCase();
 
     if (message.includes('invalid login credentials') || message.includes('invalid credentials')) {
-      return 'Incorrect username/email or password. Please check your credentials and try again.';
+      return 'Incorrect sign-in details or password. Please check your credentials and try again.';
     }
 
     if (message.includes('user not found') || message.includes('not found')) {
@@ -52,7 +53,7 @@ export default function LoginPage({ onBack }) {
     }
 
     if (!identifierReady) {
-      setError(identifierType === 'email' ? 'Enter a valid email address.' : 'Username must be at least 3 characters.');
+      setError(identifierType === 'username' ? 'Username must be at least 3 characters.' : `Enter a valid ${identifierType === 'email' ? 'email address' : 'phone number'}.`);
       return;
     }
 
@@ -102,13 +103,13 @@ export default function LoginPage({ onBack }) {
     const trimmedIdentifier = identifier.trim();
 
     if (!trimmedIdentifier) {
-      setError('Enter your email or username before requesting a password reset.');
+      setError('Enter your sign-in details before requesting a password reset.');
       return;
     }
 
     const subject = encodeURIComponent('Password Reset Notification');
     const body = encodeURIComponent(
-      `A user has requested a password reset for the SICC Admin portal.\n\nIdentifier: ${trimmedIdentifier}\nRequested via: ${identifierType === 'email' ? 'Email' : 'Username'}\n\nPlease assist with account recovery.`
+      `A user has requested a password reset for the SICC Admin portal.\n\nIdentifier: ${trimmedIdentifier}\nRequested via: ${activeTab.label}\n\nPlease assist with account recovery.`
     );
 
     window.location.href = `mailto:admin@sicc.org?subject=${subject}&body=${body}`;
@@ -206,7 +207,7 @@ export default function LoginPage({ onBack }) {
                 <div style={s.inputRow}>
                   <UserRound size={16} color={C.textMuted} style={s.iconLeft} />
                   <input
-                    type={identifierType === 'email' ? 'email' : 'text'}
+                    type={identifierType === 'email' ? 'email' : identifierType === 'phone' ? 'tel' : 'text'}
                     value={identifier}
                     onChange={(e) => setIdentifier(e.target.value)}
                     placeholder={activeTab.placeholder}

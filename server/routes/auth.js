@@ -4,7 +4,7 @@ const jwt = require('jsonwebtoken');
 const { query } = require('../db');
 const { config } = require('../config');
 const { asyncRoute, HttpError, sendData } = require('../http');
-const { authenticate, publicProfile } = require('../middleware');
+const { authenticate, requirePerm } = require('../middleware');
 const { COOKIE_NAME, cookieOptions, createSession, signChallenge, verifyChallenge, revokeSession, revokeAllForUser, listSessions } = require('../lib/sessions');
 const { validatePassword, hashPassword, verifyPassword, DUMMY_HASH } = require('../lib/password');
 const totp = require('../lib/totp');
@@ -12,8 +12,11 @@ const { encrypt, decrypt } = require('../lib/crypto');
 const bcrypt = require('bcryptjs');
 const { audit } = require('../lib/audit');
 const { alert } = require('../lib/alert');
+const { sessionPayload } = require('../lib/session-response');
+const { normalizePhoneLogin } = require('../lib/phone-login');
 
 const router = express.Router();
+const self = [authenticate, requirePerm('account.self')];
 const unknownFailures = new Map(); // identifier -> { n, until }  (same lockout behaviour for accounts that do not exist)
 const sqlTime = d => new Date(d).toISOString().slice(0, 19).replace('T', ' ');
 const GENERIC = 'Invalid username/email or password.';
@@ -52,35 +55,28 @@ async function completeLogin(req, res, profile, { remember, mfaPassed }) {
   return session;
 }
 
-function sessionPayload(profile, session) {
-  const restrictions = [];
-  if (profile.must_change_password) restrictions.push('password_change');
-  if (config.mfaRequiredRoles.includes(profile.role) && !profile.mfa_enabled) restrictions.push('mfa_setup');
-  return {
-    user: { id: profile.id, email: profile.email },
-    profile: publicProfile(profile),
-    restrictions,
-    session: { expires_at: session?.expires_at || null, remember: Boolean(session?.remember), idle_minutes: config.session.idleMinutes },
-  };
-}
-
 router.post('/login', asyncRoute(async (req, res) => {
   const identifier = String(req.body?.identifier || '').trim().slice(0, 254);
   const password = String(req.body?.password || '').slice(0, 200);
   if (!identifier || !password) throw new HttpError(400, 'Enter your username or email and password.');
   const remember = req.body?.rememberMe === true;
 
-  const unknown = unknownFailures.get(identifier.toLowerCase());
+  const phone = normalizePhoneLogin(identifier);
+  const failureKey = phone || identifier.toLowerCase();
+  const unknown = unknownFailures.get(failureKey);
   if (unknown && unknown.until > Date.now()) throw new HttpError(429, lockedMessage(unknown.until));
 
-  const rows = await query('SELECT * FROM profiles WHERE LOWER(email) = LOWER(?) OR LOWER(username) = LOWER(?) LIMIT 1', [identifier, identifier]);
-  const profile = rows[0];
+  const rows = await query(
+    "SELECT * FROM profiles WHERE LOWER(email) = LOWER(?) OR LOWER(username) = LOWER(?) OR (phone_login = ? AND role IN ('red_leader', 'red_member')) LIMIT 2",
+    [identifier, identifier, phone],
+  );
+  const profile = rows.length === 1 ? rows[0] : null;
   if (profile?.locked_until && new Date(`${profile.locked_until.replace(' ', 'T')}Z`) > new Date()) {
     throw new HttpError(429, lockedMessage(new Date(`${profile.locked_until.replace(' ', 'T')}Z`).getTime()));
   }
   const ok = await verifyPassword(password, profile ? profile.password_hash : DUMMY_HASH);
   if (!profile || !ok || !profile.is_active) {
-    await registerFailure(profile, req, identifier, profile && !profile.is_active ? 'inactive account' : 'bad password');
+    await registerFailure(profile, req, failureKey, profile && !profile.is_active ? 'inactive account' : 'bad password');
     throw new HttpError(401, GENERIC);
   }
   if (profile.mfa_enabled) {
@@ -122,7 +118,7 @@ router.post('/mfa/verify', asyncRoute(async (req, res) => {
   return sendData(res, sessionPayload(profile, { expires_at: session.expires, remember: Boolean(payload.rem) }));
 }));
 
-router.get('/me', authenticate, (req, res) => sendData(res, sessionPayload(req.profile, req.session)));
+router.get('/me', ...self, (req, res) => sendData(res, sessionPayload(req.profile, req.session)));
 
 router.post('/logout', asyncRoute(async (req, res) => {
   const token = req.cookies?.[COOKIE_NAME];
@@ -136,7 +132,7 @@ router.post('/logout', asyncRoute(async (req, res) => {
   sendData(res, { success: true });
 }));
 
-router.post('/password', authenticate, asyncRoute(async (req, res) => {
+router.post('/password', ...self, asyncRoute(async (req, res) => {
   const { current_password: current, new_password: next } = req.body || {};
   const profile = req.profile;
   if (!(await verifyPassword(String(current || ''), profile.password_hash))) throw new HttpError(400, 'Your current password is not correct.');
@@ -151,15 +147,15 @@ router.post('/password', authenticate, asyncRoute(async (req, res) => {
 }));
 
 // ---- Two-factor setup -------------------------------------------------------
-router.post('/mfa/setup', authenticate, asyncRoute(async (req, res) => {
+router.post('/mfa/setup', ...self, asyncRoute(async (req, res) => {
   if (req.profile.mfa_enabled) throw new HttpError(400, 'Two-factor authentication is already on.');
   if (req.restrictions.includes('password_change')) throw new HttpError(403, 'Change your temporary password first.', { code: 'password_change' });
   const secret = totp.generateSecret();
   await query('UPDATE profiles SET mfa_pending_secret_enc = ? WHERE id = ?', [encrypt(secret), req.profile.id]);
-  sendData(res, { secret, otpauth_url: totp.otpauthUrl({ secret, account: req.profile.email }) });
+  sendData(res, { secret, otpauth_url: totp.otpauthUrl({ secret, account: req.profile.email || req.profile.username }) });
 }));
 
-router.post('/mfa/enable', authenticate, asyncRoute(async (req, res) => {
+router.post('/mfa/enable', ...self, asyncRoute(async (req, res) => {
   const pending = req.profile.mfa_pending_secret_enc;
   if (!pending) throw new HttpError(400, 'Start setup first.');
   const step = totp.verifyTotp(decrypt(pending), req.body?.code);
@@ -172,7 +168,7 @@ router.post('/mfa/enable', authenticate, asyncRoute(async (req, res) => {
   sendData(res, { recovery_codes: codes });
 }));
 
-router.post('/mfa/disable', authenticate, asyncRoute(async (req, res) => {
+router.post('/mfa/disable', ...self, asyncRoute(async (req, res) => {
   if (config.mfaRequiredRoles.includes(req.profile.role)) throw new HttpError(403, 'Two-factor authentication is required for your role and cannot be turned off.');
   if (!(await verifyPassword(String(req.body?.password || ''), req.profile.password_hash))) throw new HttpError(400, 'Your password is not correct.');
   const step = totp.verifyTotp(decrypt(req.profile.mfa_secret_enc), req.body?.code, { lastStep: req.profile.mfa_last_step });
@@ -183,18 +179,18 @@ router.post('/mfa/disable', authenticate, asyncRoute(async (req, res) => {
 }));
 
 // ---- Sessions / devices -------------------------------------------------------
-router.get('/sessions', authenticate, asyncRoute(async (req, res) => {
+router.get('/sessions', ...self, asyncRoute(async (req, res) => {
   const rows = await listSessions(req.profile.id);
   sendData(res, rows.map(r => ({ ...r, current: r.id === req.session.id })));
 }));
 
-router.post('/sessions/revoke-others', authenticate, asyncRoute(async (req, res) => {
+router.post('/sessions/revoke-others', ...self, asyncRoute(async (req, res) => {
   await revokeAllForUser(req.profile.id, req.session.id, 'user_revoked_all');
   await audit(req, { action: 'auth.sessions_revoked', entity_type: 'profile', entity_id: req.profile.id, detail: 'Signed out all other devices' });
   sendData(res, { success: true });
 }));
 
-router.delete('/sessions/:id', authenticate, asyncRoute(async (req, res) => {
+router.delete('/sessions/:id', ...self, asyncRoute(async (req, res) => {
   const result = await query('UPDATE sessions SET revoked_at = CURRENT_TIMESTAMP, revoked_reason = ? WHERE id = ? AND user_id = ? AND revoked_at IS NULL', ['user_revoked', req.params.id, req.profile.id]);
   if (!result.affectedRows) throw new HttpError(404, 'Session not found.');
   sendData(res, { success: true });

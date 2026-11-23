@@ -2,7 +2,7 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { useTheme } from '../../hooks/useTheme';
-import { ROLES, ROLE_LABELS } from '../../data/constants';
+import { ROLES, ROLE_LABELS, isRedRole } from '../../data/constants';
 import { onQueueChange, flushQueue } from '../../lib/offlineQueue';
 import { onInstallAvailable, promptInstall } from '../../lib/pwa';
 import NotificationBell from './NotificationBell';
@@ -14,13 +14,14 @@ import '../../styles/role-home.css';
 import {
   LayoutDashboard, TrendingUp, UserCog, ClipboardList, MapPin, Building2, Phone, Radio, BarChart2, Pin, Users, CheckSquare,
   Settings, PlusCircle, LogOut, ChevronLeft, ChevronRight, QrCode, ShieldCheck, ScrollText, Inbox, LineChart,
-  Search, Sun, Moon, Download, WifiOff, RefreshCw, Home, MoreHorizontal,
+  Search, Sun, Moon, Download, WifiOff, RefreshCw, Home, MoreHorizontal, Flag, Link2,
 } from 'lucide-react';
 
 const ICON = {
   overview: LayoutDashboard, growth: TrendingUp, staff: UserCog, members: ClipboardList, kdf: MapPin, departments: Building2, followups: Phone,
   communication: Radio, reports: BarChart2, assignments: Pin, users: Users, attendance: CheckSquare, settings: Settings, register: PlusCircle,
   myMembers: Users, followup: Phone, deptMembers: Users, kdfMembers: Users, programmes: QrCode, security: ShieldCheck, audit: ScrollText, approvals: Inbox, insights: LineChart,
+  red: Flag, 'red-team': Users, 'red-join': Link2,
 };
 
 
@@ -30,17 +31,20 @@ const GOV = [
   { key: 'insights', label: 'Analytics & exports', group: 'Governance' },
 ];
 const SECURITY = { key: 'security', label: 'Security & devices', group: 'Account' };
+const RED = { key: 'red', label: 'Operation R.E.D.' };
+const RED_HOME = { key: 'overview', label: 'Operation R.E.D.' };
+const RED_TEAM = { key: 'red-team', label: 'My team' };
 
 export const NAV = {
   [ROLES.BISHOP]: [
     { key: 'overview', label: 'Overview' }, { key: 'growth', label: 'Church growth' }, { key: 'staff', label: 'Staff monitor' }, { key: 'members', label: 'All members' },
     { key: 'kdf', label: 'KDF areas' }, { key: 'departments', label: 'Departments' }, { key: 'followups', label: 'Follow-up reports' }, { key: 'programmes', label: 'Programme attendance' },
-    { key: 'communication', label: 'Communication' }, { key: 'reports', label: 'Reports' }, { key: 'assignments', label: 'Assignments' }, { key: 'users', label: 'User accounts', group: 'Governance' }, ...GOV, SECURITY,
+    { key: 'communication', label: 'Communication' }, { key: 'reports', label: 'Reports' }, { key: 'assignments', label: 'Assignments' }, RED, { key: 'users', label: 'User accounts', group: 'Governance' }, ...GOV, SECURITY,
   ],
   [ROLES.ADMIN]: [
     { key: 'overview', label: 'Dashboard' }, { key: 'users', label: 'User management' }, { key: 'staff', label: 'Staff management' }, { key: 'members', label: 'All members' },
     { key: 'departments', label: 'Departments' }, { key: 'kdf', label: 'KDF management' }, { key: 'attendance', label: 'Attendance' }, { key: 'followups', label: 'Follow-up reports' },
-    { key: 'programmes', label: 'Programme attendance' }, { key: 'reports', label: 'Reports' }, { key: 'settings', label: 'Settings' }, ...GOV, SECURITY,
+    { key: 'programmes', label: 'Programme attendance' }, { key: 'reports', label: 'Reports' }, RED, { key: 'settings', label: 'Settings' }, ...GOV, SECURITY,
   ],
   [ROLES.PASTOR]: [
     { key: 'overview', label: 'My dashboard' }, { key: 'register', label: 'Register member' }, { key: 'myMembers', label: 'My members' }, { key: 'followup', label: 'Follow-up' },
@@ -53,6 +57,8 @@ export const NAV = {
   [ROLES.KDF_COORDINATOR]: [
     { key: 'overview', label: 'My dashboard' }, { key: 'kdfMembers', label: 'Area members' }, { key: 'followup', label: 'Follow-up' }, { key: 'reports', label: 'Area reports' }, SECURITY,
   ],
+  [ROLES.RED_LEADER]: [RED_HOME, RED_TEAM, { key: 'red-join', label: 'Join link' }, SECURITY],
+  [ROLES.RED_MEMBER]: [RED_HOME, RED_TEAM, SECURITY],
 };
 
 
@@ -62,6 +68,8 @@ const DOCK = {
   [ROLES.BISHOP]: ['members', 'programmes', 'reports'],
   [ROLES.DEPARTMENT_LEADER]: ['deptMembers', 'attendance', 'reports'],
   [ROLES.KDF_COORDINATOR]: ['kdfMembers', 'followup', 'reports'],
+  [ROLES.RED_LEADER]: ['red-team', 'red-join'],
+  [ROLES.RED_MEMBER]: ['red-team', 'security'],
 };
 
 const icon = { size: 20, strokeWidth: 1.75, 'aria-hidden': true };
@@ -114,6 +122,7 @@ export default function Layout({ activeTab, setActiveTab, mobile, children }) {
   const moreId = useId();
 
   const role = profile.role;
+  const redAccount = isRedRole(role);
   const nav = NAV[role] || [];
   const pageName = nav.find(item => item.key === activeTab)?.label || 'Dashboard';
   const dockKeys = ['overview', ...(DOCK[role] || [])];
@@ -141,12 +150,13 @@ export default function Layout({ activeTab, setActiveTab, mobile, children }) {
     window.addEventListener('offline', sync);
     return () => { window.removeEventListener('online', sync); window.removeEventListener('offline', sync); };
   }, []);
-  useEffect(() => onQueueChange(setPending), []);
+  useEffect(() => redAccount ? undefined : onQueueChange(setPending), [redAccount]);
   useEffect(() => {
+    if (redAccount) return undefined;
     const showMember = e => setMemberId(e.detail);
     window.addEventListener('sicc:open-member', showMember);
     return () => window.removeEventListener('sicc:open-member', showMember);
-  }, []);
+  }, [redAccount]);
   useEffect(() => onInstallAvailable(setCanInstall), []);
   useEffect(() => {
     const key = e => {
@@ -209,11 +219,11 @@ export default function Layout({ activeTab, setActiveTab, mobile, children }) {
           )}
         </header>
 
-        {(!online || pending > 0) && (
+        {(!online || (!redAccount && pending > 0)) && (
           <div role="status" className="app-network-status no-print">
             {online ? <RefreshCw {...icon} /> : <WifiOff {...icon} />}
-            <span>{!online ? 'You’re offline. ' : ''}{pending > 0 ? `${pending} attendance ${pending === 1 ? 'entry is' : 'entries are'} saved on this phone and will be sent automatically.` : 'Showing the last loaded data until you reconnect.'}</span>
-            {online && pending > 0 && <button type="button" onClick={() => flushQueue()}>Send now</button>}
+            <span>{!online ? 'You’re offline. ' : ''}{!redAccount && pending > 0 ? `${pending} attendance ${pending === 1 ? 'entry is' : 'entries are'} saved on this phone and will be sent automatically.` : 'Showing the last loaded data until you reconnect.'}</span>
+            {online && !redAccount && pending > 0 && <button type="button" onClick={() => flushQueue()}>Send now</button>}
           </div>
         )}
 
@@ -222,12 +232,12 @@ export default function Layout({ activeTab, setActiveTab, mobile, children }) {
         </main>
 
         {mobile && (
-          <nav className="app-dock no-print" aria-label={`${roleLabel} mobile navigation`}>
+          <nav className="app-dock no-print" data-red={redAccount || undefined} aria-label={`${roleLabel} mobile navigation`}>
             {dockKeys.map((key, index) => {
               const page = nav.find(item => item.key === key);
-              const center = index === 2;
+              const center = index === 2 && role !== ROLES.RED_MEMBER;
               const Icon = key === 'overview' ? Home : ICON[key];
-              const label = index === 0 ? 'Home' : index === 1 ? 'Members' : page?.label;
+              const label = index === 0 ? 'Home' : key === 'security' ? 'Security' : index === 1 && !redAccount ? 'Members' : page?.label;
               return (
                 <button key={key} type="button" className={center ? 'app-dock-center' : undefined}
                   onClick={() => go(key)} aria-current={activeTab === key ? 'page' : undefined}>
@@ -255,8 +265,8 @@ export default function Layout({ activeTab, setActiveTab, mobile, children }) {
           </FloatingCard>
         )}
       </div>
-      <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} pages={nav} onGo={go} onOpenMember={setMemberId} actions={actions} />
-      {memberId && <MemberDrawer memberId={memberId} onClose={() => setMemberId(null)} />}
+      <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} pages={nav} onGo={go} onOpenMember={setMemberId} actions={actions} searchMembers={!redAccount} />
+      {!redAccount && memberId && <MemberDrawer memberId={memberId} onClose={() => setMemberId(null)} />}
     </div>
   );
 }

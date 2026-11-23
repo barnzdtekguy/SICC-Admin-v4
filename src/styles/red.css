@@ -1,0 +1,24 @@
+.red-page, .red-stack { display: grid; gap: 16px; min-width: 0; }
+.red-page { gap: 24px; }
+.red-page h1, .red-public h1 { font-size: clamp(28px, 4vw, 42px); line-height: 1.12; overflow-wrap: anywhere; }
+.red-page p, .red-public p { color: var(--muted); overflow-wrap: anywhere; }
+.red-page .role-home-hero h1, .red-page .role-home-hero p { color: var(--glass-muted); }
+.red-page .role-home-hero { align-items: center; flex-wrap: wrap; }
+.red-page .role-home-hero h1 { color: var(--hero-number); }
+.red-page .role-home-hero-number { margin: 8px 0; }
+.red-page .role-home-hero > div { min-width: 0; }
+.red-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.red-actions button { min-height: 44px; }
+.red-controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)); gap: 14px; align-items: end; }
+.red-list { list-style: none; padding: 0; margin: 0; }
+.red-list li { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px 16px; padding: 12px 0; border-top: 1px solid var(--line); min-width: 0; overflow-wrap: anywhere; }
+.red-list li > div { min-width: 0; }
+.red-list small, .red-muted { color: var(--muted); }
+.red-share { display: grid; gap: 8px; padding: 12px; border-radius: var(--radius-lg); border: 1px solid var(--line); min-width: 0; }
+.red-share input { width: 100%; min-width: 0; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--page); color: var(--text); font: inherit; font-size: 14px; }
+.red-text-link { color: var(--accent-ink); font-weight: 600; padding: 10px 2px; overflow-wrap: anywhere; }
+.red-public { min-height: 100dvh; display: grid; place-items: center; padding: 24px 12px; background: var(--page); }
+.red-public-card { width: min(100%, 516px); min-width: 0; }
+.red-invite-brand { display: flex; gap: 10px; align-items: center; margin-bottom: 16px; }
+.red-invite-brand img { object-fit: contain; }
+.red-loading { display: flex; align-items: center; gap: 8px; color: var(--muted); }

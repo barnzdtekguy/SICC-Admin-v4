@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { apiRequest } from '../lib/api';
 import { flushQueue } from '../lib/offlineQueue';
+import { isRedRole } from '../data/constants';
 
 const AuthContext = createContext(null);
 const QUIET = ['Please sign in to continue.', 'Your session has expired. Please sign in again.'];
@@ -39,7 +40,7 @@ export function AuthProvider({ children }) {
 
   // Send any attendance that was saved offline once we are signed in and online.
   useEffect(() => {
-    if (!profile || restrictions.length) return undefined;
+    if (!profile || isRedRole(profile.role) || restrictions.length) return undefined;
     flushQueue();
     const onOnline = () => flushQueue();
     window.addEventListener('online', onOnline);
@@ -92,8 +93,8 @@ export function AuthProvider({ children }) {
   const value = useMemo(() => ({
     user, profile, restrictions, sessionInfo, notice, mfaChallenge, loading,
     isAuthenticated: !!user && !!profile,
-    login, verifyMfa, cancelMfa: () => setMfaChallenge(null), logout, refresh, clearNotice: () => setNotice(''),
-  }), [user, profile, restrictions, sessionInfo, notice, mfaChallenge, loading, logout, refresh]);
+    login, verifyMfa, cancelMfa: () => setMfaChallenge(null), logout, refresh, applySession, clearNotice: () => setNotice(''),
+  }), [user, profile, restrictions, sessionInfo, notice, mfaChallenge, loading, logout, refresh, applySession]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

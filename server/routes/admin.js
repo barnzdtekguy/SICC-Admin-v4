@@ -20,12 +20,12 @@ router.get('/health', asyncRoute(async (_req, res) => {
 }));
 
 // ---------------------------------------------------------------- reference data
-router.get('/meta/departments', ...secured, asyncRoute(async (_req, res) => sendData(res, await query('SELECT id, name, color FROM departments WHERE is_active = 1 ORDER BY sort_order, name'))));
-router.get('/meta/kdf-areas', ...secured, asyncRoute(async (_req, res) => sendData(res, await query('SELECT id, name FROM kdf_areas WHERE is_active = 1 ORDER BY sort_order, name'))));
+router.get('/meta/departments', ...secured, requirePerm('church-metadata.read'), asyncRoute(async (_req, res) => sendData(res, await query('SELECT id, name, color FROM departments WHERE is_active = 1 ORDER BY sort_order, name'))));
+router.get('/meta/kdf-areas', ...secured, requirePerm('church-metadata.read'), asyncRoute(async (_req, res) => sendData(res, await query('SELECT id, name FROM kdf_areas WHERE is_active = 1 ORDER BY sort_order, name'))));
 
 // ---------------------------------------------------------------- audit
 // Client-reported logging was forgeable and has been removed; the server records every action itself.
-router.post('/activity-logs', ...secured, (_req, res) => res.status(200).json({ data: { ignored: true, note: 'Activity is now recorded by the server.' } }));
+router.post('/activity-logs', ...secured, requirePerm('activity-logs.legacy'), (_req, res) => res.status(200).json({ data: { ignored: true, note: 'Activity is now recorded by the server.' } }));
 
 router.get('/activity-logs', ...secured, requirePerm('audit.read'), asyncRoute(async (req, res) => {
   const limit = int(req.query.limit, { min: 1, max: 500, fallback: 50 });
@@ -166,22 +166,22 @@ router.post('/messages/whatsapp', ...secured, requirePerm('messages.send'), mess
 }));
 
 // ---------------------------------------------------------------- notifications + web push
-router.get('/notifications', ...secured, asyncRoute(async (req, res) => {
+router.get('/notifications', ...secured, requirePerm('notifications.self'), asyncRoute(async (req, res) => {
   const items = await query('SELECT id, type, title, body, link, read_at, created_at FROM notifications WHERE user_id = ? ORDER BY created_at DESC LIMIT 40', [req.profile.id]);
   const [{ unread }] = await query('SELECT COUNT(*) AS unread FROM notifications WHERE user_id = ? AND read_at IS NULL', [req.profile.id]);
   sendData(res, { items, unread });
 }));
-router.post('/notifications/read-all', ...secured, asyncRoute(async (req, res) => { await query('UPDATE notifications SET read_at = CURRENT_TIMESTAMP WHERE user_id = ? AND read_at IS NULL', [req.profile.id]); sendData(res, { success: true }); }));
-router.post('/notifications/:id/read', ...secured, asyncRoute(async (req, res) => { await query('UPDATE notifications SET read_at = CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?', [req.params.id, req.profile.id]); sendData(res, { success: true }); }));
+router.post('/notifications/read-all', ...secured, requirePerm('notifications.read-all'), asyncRoute(async (req, res) => { await query('UPDATE notifications SET read_at = CURRENT_TIMESTAMP WHERE user_id = ? AND read_at IS NULL', [req.profile.id]); sendData(res, { success: true }); }));
+router.post('/notifications/:id/read', ...secured, requirePerm('notifications.self'), asyncRoute(async (req, res) => { await query('UPDATE notifications SET read_at = CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?', [req.params.id, req.profile.id]); sendData(res, { success: true }); }));
 
-router.get('/push/public-key', ...secured, (_req, res) => sendData(res, { publicKey: config.vapid.publicKey || null }));
-router.post('/push/subscribe', ...secured, asyncRoute(async (req, res) => {
+router.get('/push/public-key', ...secured, requirePerm('push.self'), (_req, res) => sendData(res, { publicKey: config.vapid.publicKey || null }));
+router.post('/push/subscribe', ...secured, requirePerm('push.self'), asyncRoute(async (req, res) => {
   const { endpoint, keys } = req.body || {};
   if (!endpoint || !keys?.p256dh || !keys?.auth || String(endpoint).length > 500 || !/^https:\/\//.test(endpoint)) throw new HttpError(400, 'Invalid push subscription.');
   await query('INSERT INTO push_subscriptions (id, user_id, endpoint, p256dh, auth) VALUES (?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE user_id = VALUES(user_id), p256dh = VALUES(p256dh), auth = VALUES(auth)', [crypto.randomUUID(), req.profile.id, endpoint, String(keys.p256dh).slice(0, 255), String(keys.auth).slice(0, 255)]);
   sendData(res, { success: true });
 }));
-router.post('/push/unsubscribe', ...secured, asyncRoute(async (req, res) => { await query('DELETE FROM push_subscriptions WHERE endpoint = ? AND user_id = ?', [String(req.body?.endpoint || ''), req.profile.id]); sendData(res, { success: true }); }));
+router.post('/push/unsubscribe', ...secured, requirePerm('push.self'), asyncRoute(async (req, res) => { await query('DELETE FROM push_subscriptions WHERE endpoint = ? AND user_id = ?', [String(req.body?.endpoint || ''), req.profile.id]); sendData(res, { success: true }); }));
 
 // ---------------------------------------------------------------- reports + exports (management only, audited)
 function range(req) {
@@ -227,7 +227,7 @@ router.get('/exports/audit.csv', ...secured, requirePerm('exports.run'), exportL
 }));
 
 // ---------------------------------------------------------------- department / KDF reports (previously the text was discarded)
-router.post('/reports/submit', ...secured, asyncRoute(async (req, res) => {
+router.post('/reports/submit', ...secured, requirePerm('reports.submit'), asyncRoute(async (req, res) => {
   const role = req.profile.role;
   const kind = role === 'department_leader' ? 'department' : role === 'kdf_coordinator' ? 'kdf' : null;
   if (!kind) throw new HttpError(403, 'Only department leaders and KDF coordinators submit these reports.');
@@ -243,7 +243,7 @@ router.post('/reports/submit', ...secured, asyncRoute(async (req, res) => {
 router.get('/reports/submitted', ...secured, requirePerm('reports.org'), asyncRoute(async (_req, res) => sendData(res, await query('SELECT * FROM submitted_reports ORDER BY created_at DESC LIMIT 100'))));
 
 // ---------------------------------------------------------------- role-aware morning brief
-router.get('/brief', ...secured, asyncRoute(async (req, res) => {
+router.get('/brief', ...secured, requirePerm('brief.read'), asyncRoute(async (req, res) => {
   const p = req.profile; const today = todayStr(); const out = { role: p.role, today };
   const md = today.slice(5);
   const overdueSql = "status = 'In Progress' AND deleted_at IS NULL AND created_at < DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 7 DAY)";

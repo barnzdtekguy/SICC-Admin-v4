@@ -4,7 +4,7 @@ import { C } from '../../lib/theme';
 import { searchEverything } from '../../lib/db';
 
 // Ctrl/Cmd+K: jump to any page, find a member, or run a quick action.
-export default function CommandPalette({ open, onClose, pages, onGo, onOpenMember, actions }) {
+export default function CommandPalette({ open, onClose, pages, onGo, onOpenMember, actions, searchMembers = true }) {
   const [q, setQ] = useState('');
   const [members, setMembers] = useState([]);
   const [index, setIndex] = useState(0);
@@ -12,10 +12,10 @@ export default function CommandPalette({ open, onClose, pages, onGo, onOpenMembe
 
   useEffect(() => { if (open) { setQ(''); setMembers([]); setIndex(0); setTimeout(() => input.current?.focus(), 0); } }, [open]);
   useEffect(() => {
-    if (q.trim().length < 2) { setMembers([]); return undefined; }
+    if (!searchMembers || q.trim().length < 2) { setMembers([]); return undefined; }
     const t = setTimeout(() => searchEverything(q.trim()).then(r => setMembers(r.members || [])).catch(() => setMembers([])), 220);
     return () => clearTimeout(t);
-  }, [q]);
+  }, [q, searchMembers]);
 
   const items = useMemo(() => {
     const needle = q.trim().toLowerCase();

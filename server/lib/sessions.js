@@ -11,16 +11,16 @@ function cookieOptions(maxAgeSeconds) {
   return { httpOnly: true, secure: config.isProd, sameSite: 'strict', path: '/', maxAge: maxAgeSeconds * 1000 };
 }
 
-async function createSession(profile, { remember = false, ip = null, userAgent = null, mfaPassed = false } = {}) {
+async function createSession(profile, { remember = false, ip = null, userAgent = null, mfaPassed = false } = {}, connection = null) {
   const id = crypto.randomUUID();
   const ttl = remember ? config.session.rememberSeconds : config.session.ttlSeconds;
   const expires = new Date(Date.now() + ttl * 1000);
-  await query(
-    'INSERT INTO sessions (id, user_id, remember, mfa_passed, ip, user_agent, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
-    [id, profile.id, remember ? 1 : 0, mfaPassed ? 1 : 0, ip ? String(ip).slice(0, 64) : null, userAgent ? String(userAgent).slice(0, 255) : null, sqlTime(expires)],
-  );
+  const sql = 'INSERT INTO sessions (id, user_id, remember, mfa_passed, ip, user_agent, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?)';
+  const values = [id, profile.id, remember ? 1 : 0, mfaPassed ? 1 : 0, ip ? String(ip).slice(0, 64) : null, userAgent ? String(userAgent).slice(0, 255) : null, sqlTime(expires)];
+  if (connection) await connection.execute(sql, values);
+  else await query(sql, values);
   const token = jwt.sign({ sub: profile.id, sid: id }, config.jwtSecret, { algorithm: 'HS256', expiresIn: ttl });
-  return { id, token, ttl, expires };
+  return { id, token, ttl, expires, expires_at: sqlTime(expires), remember };
 }
 
 const verifyToken = token => jwt.verify(token, config.jwtSecret, { algorithms: ['HS256'] });

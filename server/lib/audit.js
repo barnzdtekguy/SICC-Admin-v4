@@ -35,7 +35,7 @@ function actorFrom(req, actor) {
   return p ? { id: p.id, name: p.name, role: p.role } : { id: null, name: 'system', role: null };
 }
 
-async function audit(req, { action, entity_type = null, entity_id = null, detail = null, before, after, actor } = {}) {
+async function appendAudit(conn, req, { action, entity_type = null, entity_id = null, detail = null, before, after, actor }) {
   const who = actorFrom(req, actor);
   const created = new Date(); created.setMilliseconds(0);
   const row = {
@@ -51,24 +51,49 @@ async function audit(req, { action, entity_type = null, entity_id = null, detail
     after_json: toJson(after),
     ip: req?.ip ? String(req.ip).slice(0, 64) : null,
   };
+  const [last] = await conn.query('SELECT hash FROM activity_logs WHERE hash IS NOT NULL ORDER BY seq DESC LIMIT 1 FOR UPDATE');
+  const prev = last[0]?.hash || GENESIS;
+  const hash = digest(prev, row, created.toISOString());
+  await conn.execute(
+    `INSERT INTO activity_logs (id, user_id, user_name, role, action, entity_type, entity_id, detail, before_json, after_json, ip, user_agent, request_id, prev_hash, hash, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [row.id, row.user_id, row.user_name, row.role, row.action, row.entity_type, row.entity_id, row.detail, row.before_json, row.after_json, row.ip,
+      req?.get ? String(req.get('user-agent') || '').slice(0, 255) : null, req?.id ? String(req.id).slice(0, 40) : null, prev, hash, sqlTime(created)],
+  );
+  return row.id;
+}
+
+async function withAuditLock(conn, work) {
+  const [[lock]] = await conn.query("SELECT GET_LOCK('sicc_audit_chain', 15) AS got");
+  if (lock.got !== 1) throw new Error('Audit log is busy; the action was not recorded.');
+  try { return await work(); }
+  finally { await conn.query("SELECT RELEASE_LOCK('sicc_audit_chain')").catch(() => {}); }
+}
+
+async function audit(req, event = {}) {
+  const conn = await pool.getConnection();
+  try { return await withAuditLock(conn, () => appendAudit(conn, req, event)); }
+  finally { conn.release(); }
+}
+
+async function auditTransaction(req, work) {
   const conn = await pool.getConnection();
   try {
-    const [[lock]] = await conn.query("SELECT GET_LOCK('sicc_audit_chain', 15) AS got");
-    if (lock.got !== 1) throw new Error('Audit log is busy; the action was not recorded.');
-    const [last] = await conn.query('SELECT hash FROM activity_logs WHERE hash IS NOT NULL ORDER BY seq DESC LIMIT 1');
-    const prev = last[0]?.hash || GENESIS;
-    const hash = digest(prev, row, created.toISOString());
-    await conn.execute(
-      `INSERT INTO activity_logs (id, user_id, user_name, role, action, entity_type, entity_id, detail, before_json, after_json, ip, user_agent, request_id, prev_hash, hash, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [row.id, row.user_id, row.user_name, row.role, row.action, row.entity_type, row.entity_id, row.detail, row.before_json, row.after_json, row.ip,
-        req?.get ? String(req.get('user-agent') || '').slice(0, 255) : null, req?.id ? String(req.id).slice(0, 40) : null, prev, hash, sqlTime(created)],
-    );
-    return row.id;
-  } finally {
-    await conn.query("SELECT RELEASE_LOCK('sicc_audit_chain')").catch(() => {});
-    conn.release();
-  }
+    for (let attempt = 0; ; attempt++) {
+      try {
+        await conn.beginTransaction();
+        const { data, event } = await work(conn);
+        return await withAuditLock(conn, async () => {
+          await appendAudit(conn, req, event);
+          await conn.commit();
+          return data;
+        });
+      } catch (error) {
+        await conn.rollback();
+        if (error.code !== 'ER_LOCK_DEADLOCK' || attempt >= 2) throw error;
+      }
+    }
+  } finally { conn.release(); }
 }
 
 // For high-volume read events (viewing lists / records): at most one entry per key per window.
@@ -103,4 +128,4 @@ async function recordRevision(conn, { entity_type, entity_id, snapshot, reason, 
   if (conn) await conn.execute(sql, values); else await query(sql, values);
 }
 
-module.exports = { audit, auditThrottled, verifyChain, recordRevision, redact, digest, GENESIS };
+module.exports = { audit, auditTransaction, auditThrottled, verifyChain, recordRevision, redact, digest, GENESIS };

@@ -15,10 +15,11 @@ const MEMBER_FIELDS = ['first_name', 'last_name', 'phone', 'address', 'date_of_b
 const HIDE_NOTES = ['department_leader', 'kdf_coordinator'];
 
 function scopeFor(profile) {
+  if (can(profile.role, 'members.read.all')) return null;
   if (profile.role === 'pastor') return { sql: 'registered_by = ?', value: profile.id };
-  if (profile.role === 'department_leader') return { sql: 'department = ?', value: profile.department || '' };
-  if (profile.role === 'kdf_coordinator') return { sql: 'kdf_area = ?', value: profile.kdf_area || '' };
-  return null;
+  if (profile.role === 'department_leader') return { sql: 'department = ?', value: profile.department || null };
+  if (profile.role === 'kdf_coordinator') return { sql: 'kdf_area = ?', value: profile.kdf_area || null };
+  throw new HttpError(403, 'You do not have permission to view member records.');
 }
 const shape = (profile, row) => (HIDE_NOTES.includes(profile.role) ? { ...row, notes: undefined } : row);
 
@@ -72,7 +73,7 @@ async function loadMember(req, { allowDeleted = false } = {}) {
   return member;
 }
 
-router.get('/members', ...secured, asyncRoute(async (req, res) => {
+router.get('/members', ...secured, requirePerm('members.read'), asyncRoute(async (req, res) => {
   const where = ['deleted_at IS NULL'];
   const values = [];
   const scope = scopeFor(req.profile);
@@ -103,7 +104,7 @@ router.get('/members', ...secured, asyncRoute(async (req, res) => {
 }));
 
 // Lightweight cross-record search for the command palette (scoped exactly like the list).
-router.get('/search', ...secured, asyncRoute(async (req, res) => {
+router.get('/search', ...secured, requirePerm('member-search.read'), asyncRoute(async (req, res) => {
   const q = String(req.query.q || '').trim().slice(0, 80);
   if (q.length < 2) return sendData(res, { members: [] });
   const where = ['deleted_at IS NULL', "(CONCAT(first_name, ' ', last_name) LIKE ? OR phone LIKE ?)"];
@@ -115,13 +116,13 @@ router.get('/search', ...secured, asyncRoute(async (req, res) => {
   sendData(res, { members: rows });
 }));
 
-router.get('/members/:id', ...secured, asyncRoute(async (req, res) => {
+router.get('/members/:id', ...secured, requirePerm('members.read'), asyncRoute(async (req, res) => {
   const member = await loadMember(req);
   await auditThrottled(req, `member-view:${req.profile.id}:${member.id}`, 10 * 60 * 1000, { action: 'member.view', entity_type: 'member', entity_id: member.id, detail: `${member.first_name} ${member.last_name}` });
   sendData(res, shape(req.profile, member));
 }));
 
-router.get('/members/:id/timeline', ...secured, asyncRoute(async (req, res) => {
+router.get('/members/:id/timeline', ...secured, requirePerm('members.read'), asyncRoute(async (req, res) => {
   const member = await loadMember(req);
   const followUps = can(req.profile.role, 'followups.read')
     ? await query('SELECT id, date, method, status, notes, outcome, pastor_name, created_at FROM follow_ups WHERE member_id = ? AND deleted_at IS NULL ORDER BY created_at DESC LIMIT 100', [member.id]) : [];

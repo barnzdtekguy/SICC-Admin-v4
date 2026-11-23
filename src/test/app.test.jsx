@@ -109,6 +109,88 @@ describe('routing and auth gates', () => {
   });
 });
 
+describe('Operation R.E.D. onboarding', () => {
+  const token = 'x'.repeat(43);
+  const leader = { ...PASTOR, id: 'red-leader', name: 'Ada Leader', email: null, role: 'red_leader' };
+  const member = { ...PASTOR, id: 'red-member', name: 'Bola Member', email: null, role: 'red_member' };
+  const team = { id: 'team-id', leader_name: leader.name, joined: 2, seat_limit: 5 };
+  const signedOut = [{ error: 'Please sign in to continue.' }, 401];
+
+  it('signs up a leader with a phone and opens the private dashboard', async () => {
+    const calls = mockApi({
+      '/auth/me': signedOut,
+      'POST /public/red/leader-invites/inspect': { kind: 'leader' },
+      'POST /public/red/leader-invites/accept': [session(leader), 201],
+      '/red/team': { ...team, members: [{ ...leader, joined_at: '2026-11-23 10:00:00' }] },
+    });
+    const user = userEvent.setup();
+    goto(`/red/invite/leader#${token}`);
+    render(<App />);
+    expect(await screen.findByRole('heading', { name: /you have been invited to lead/i })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Accept' }));
+    await user.type(screen.getByRole('textbox', { name: 'Full name' }), 'Ada Leader');
+    await user.type(screen.getByRole('textbox', { name: 'Phone number' }), '08012345678');
+    await user.type(screen.getByLabelText(/^Password/), 'Granite!Lantern-7731');
+    await user.click(screen.getByRole('button', { name: 'Create account and sign in' }));
+    expect(await screen.findByRole('heading', { name: 'Operation R.E.D.' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Team roster' })).toBeInTheDocument();
+    expect(window.location.pathname).toBe('/app/overview');
+    expect(window.location.hash).toBe('');
+    expect(calls.find(call => call.path.endsWith('/accept')).body).toEqual({
+      name: 'Ada Leader', phone: '08012345678', email: '', password: 'Granite!Lantern-7731', token,
+    });
+  });
+
+  it('records a decline without opening an account form', async () => {
+    const calls = mockApi({
+      '/auth/me': signedOut,
+      'POST /public/red/leader-invites/inspect': { kind: 'leader' },
+      'POST /public/red/leader-invites/decline': { recorded: true },
+    });
+    goto(`/red/invite/leader#${token}`);
+    render(<App />);
+    await userEvent.click(await screen.findByRole('button', { name: 'Decline' }));
+    expect(await screen.findByText(/recorded your response/i)).toBeInTheDocument();
+    expect(screen.queryByLabelText('Phone number')).toBeNull();
+    expect(calls.find(call => call.path.endsWith('/decline')).body).toEqual({ token });
+  });
+
+  it('shows a neutral duplicate phone error and offers sign-in on a team invitation', async () => {
+    mockApi({
+      '/auth/me': signedOut,
+      'POST /public/red/team-invites/inspect': { ...team, kind: 'member' },
+      'POST /public/red/team-invites/accept': [{ error: 'We couldn’t create this account.', code: 'red_account_unavailable' }, 409],
+    });
+    const user = userEvent.setup();
+    goto(`/red/invite/member#${token}`);
+    render(<App />);
+    expect(await screen.findByRole('heading', { name: /join ada leader/i })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Accept' }));
+    await user.type(screen.getByRole('textbox', { name: 'Full name' }), 'Bola Member');
+    await user.type(screen.getByRole('textbox', { name: 'Phone number' }), '08012345678');
+    await user.type(screen.getByLabelText(/^Password/), 'Granite!Lantern-7731');
+    await user.click(screen.getByRole('button', { name: 'Create account and sign in' }));
+    expect(await screen.findByRole('link', { name: 'Sign in to an existing account' })).toHaveAttribute('href', '/login');
+  });
+
+  it('supports phone sign-in and keeps a member out of church screens and leader actions', async () => {
+    const calls = mockApi({ '/auth/me': signedOut, 'POST /auth/login': session(member), '/red/team': team });
+    const user = userEvent.setup();
+    goto('/app/members');
+    render(<App />);
+    await user.click(await screen.findByRole('button', { name: 'Phone' }));
+    await user.type(screen.getByLabelText('Phone'), '08012345678');
+    await user.click(screen.getByRole('button', { name: 'Next' }));
+    await user.type(screen.getByLabelText('Password'), 'Granite!Lantern-7731');
+    await user.click(screen.getByRole('button', { name: /log in$/i }));
+    expect(await screen.findByRole('heading', { name: 'Operation R.E.D.' })).toBeInTheDocument();
+    expect(window.location.pathname).toBe('/app/overview');
+    expect(screen.queryByRole('button', { name: 'Open join link' })).toBeNull();
+    expect(calls.find(call => call.path === '/auth/login').body.identifier).toBe('08012345678');
+    expect(calls.some(call => ['/members', '/brief', '/red/team/join-link'].includes(call.path))).toBe(false);
+  });
+});
+
 describe('programme check-in', () => {
   const programme = { id: 'sunday-service', name: 'Sunday Service', programme_type: 'service' };
 

@@ -33,6 +33,9 @@ function createApp() {
   api.use('/auth/login', mw.loginLimiter);
   api.use('/auth/mfa/verify', mw.loginLimiter);
   api.use('/auth', require('./routes/auth'));
+  const red = require('./routes/red');
+  api.use('/red', red.signed);
+  api.use('/public/red', red.publicInvites);
   for (const file of ['profiles', 'members', 'attendance', 'corrections', 'training', 'admin']) api.use(require(`./routes/${file}`));
   api.use((_req, _res, next) => next(new HttpError(404, 'API route not found.')));
   app.use('/api', api);

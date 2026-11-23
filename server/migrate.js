@@ -7,6 +7,7 @@ const { pool, query, rawQuery, transaction } = require('./db');
 const { config } = require('./config');
 const { encrypt, isEncrypted } = require('./lib/crypto');
 const { phoneLast10 } = require('./http');
+const { normalizePhoneLogin } = require('./lib/phone-login');
 const lists = require('./data/lists.json');
 const { RETIRED_PROGRAMME_ID, RETIRED_PROGRAMME_TYPE } = require('./lib/programmes');
 
@@ -274,6 +275,27 @@ const migrations = [
         SET c.status = 'cancelled', c.decided_at = CURRENT_TIMESTAMP, c.decision_note = 'The 32-day programme was retired.'
         WHERE c.status = 'pending' AND (c.entity_type = 'greatness_attendance' OR r.programme_id = ? OR r.programme_type = ?)`, retired);
     }),
+  },
+  {
+    id: '011_red_onboarding',
+    up: async () => {
+      const profiles = await query('SELECT id, phone, username FROM profiles');
+      const keys = profiles.map(row => ({
+        id: row.id,
+        phone: normalizePhoneLogin(row.phone) || normalizePhoneLogin(row.username),
+      })).filter(row => row.phone);
+      await addColumn('profiles', 'phone_login', 'VARCHAR(16) CHARACTER SET ascii COLLATE ascii_bin NULL');
+      await transaction(async connection => {
+        for (const row of keys) await connection.execute('UPDATE profiles SET phone_login = ? WHERE id = ?', [row.phone, row.id]);
+      });
+      await addIndex('profiles', 'profiles_phone_login_idx', 'phone_login');
+      // Legacy staff may share a contact number. A phone used as a R.E.D. login has one owner.
+      await addColumn('profiles', 'red_phone_login', "VARCHAR(16) CHARACTER SET ascii COLLATE ascii_bin GENERATED ALWAYS AS (CASE WHEN role IN ('red_leader','red_member') THEN phone_login ELSE NULL END) STORED");
+      await addIndex('profiles', 'profiles_red_phone_login_unique', 'red_phone_login', { unique: true });
+      const [emailColumn] = await query("SELECT IS_NULLABLE AS nullable FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = 'profiles' AND column_name = 'email'");
+      if (emailColumn?.nullable === 'NO') await rawQuery('ALTER TABLE profiles MODIFY COLUMN email VARCHAR(254) NULL');
+      await runSqlFile('red-phase-1.sql');
+    },
   },
 ];
 

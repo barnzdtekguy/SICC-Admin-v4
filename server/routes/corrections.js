@@ -36,7 +36,7 @@ const ENTITIES = {
 
 const shape = r => ({ ...r, proposed: JSON.parse(r.proposed_json || '{}'), current: JSON.parse(r.current_json || '{}'), proposed_json: undefined, current_json: undefined });
 
-router.get('/corrections', ...secured, asyncRoute(async (req, res) => {
+router.get('/corrections', ...secured, requirePerm('corrections.read'), asyncRoute(async (req, res) => {
   const where = []; const values = [];
   if (!can(req.profile.role, 'corrections.decide')) { where.push('requested_by = ?'); values.push(req.profile.id); }
   if (req.query.status) { where.push('status = ?'); values.push(String(req.query.status)); }

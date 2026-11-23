@@ -4,7 +4,7 @@ const crypto = require('crypto');
 const { query, transaction } = require('../db');
 const { config } = require('../config');
 const { asyncRoute, HttpError, sendData, str, oneOf, validDate, todayStr, normalizePhone, phoneLast10 } = require('../http');
-const { authenticate, enforceRestrictions, secured, requirePerm, publicCheckInLimiter } = require('../middleware');
+const { secured, requirePerm, publicCheckInLimiter } = require('../middleware');
 const { PRIVILEGED } = require('../permissions');
 const { audit, recordRevision } = require('../lib/audit');
 const { lockedByDate, requireReason } = require('../lib/locks');
@@ -23,11 +23,13 @@ const PUBLIC_FIELDS = r => ({
   geo_required: r.geo_lat !== null && r.geo_lng !== null, require_token: Boolean(r.require_token),
 });
 
-router.get('/programmes', asyncRoute(async (req, res, next) => {
-  const rows = await query('SELECT * FROM attendance_programmes WHERE is_active = 1 AND id <> ? AND programme_type <> ? ORDER BY created_at DESC', [RETIRED_PROGRAMME_ID, RETIRED_PROGRAMME_TYPE]);
-  if (req.query.public === '1') return sendData(res, rows.map(PUBLIC_FIELDS));
-  return authenticate(req, res, error => (error ? next(error) : enforceRestrictions(req, res, err2 => (err2 ? next(err2) : sendData(res, rows)))));
-}));
+const activeProgrammes = () => query(
+  'SELECT * FROM attendance_programmes WHERE is_active = 1 AND id <> ? AND programme_type <> ? ORDER BY created_at DESC',
+  [RETIRED_PROGRAMME_ID, RETIRED_PROGRAMME_TYPE],
+);
+router.get('/programmes', (req, _res, next) => next(req.query.public === '1' ? undefined : 'route'),
+  asyncRoute(async (_req, res) => sendData(res, (await activeProgrammes()).map(PUBLIC_FIELDS))));
+router.get('/programmes', ...secured, requirePerm('programmes.read'), asyncRoute(async (_req, res) => sendData(res, await activeProgrammes())));
 
 router.post('/programmes', ...secured, requirePerm('programmes.manage'), asyncRoute(async (req, res) => {
   const b = req.body || {};
