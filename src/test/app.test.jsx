@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeAll, beforeEach } from 'vitest';
 import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import App from '../App';
@@ -110,6 +110,8 @@ describe('routing and auth gates', () => {
 });
 
 describe('Operation R.E.D. onboarding', () => {
+  beforeAll(async () => { await import('../components/red/RedCampaign'); });
+
   const token = 'x'.repeat(43);
   const leader = { ...PASTOR, id: 'red-leader', name: 'Ada Leader', email: null, role: 'red_leader' };
   const member = { ...PASTOR, id: 'red-member', name: 'Bola Member', email: null, role: 'red_member' };
