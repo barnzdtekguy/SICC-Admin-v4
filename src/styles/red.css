@@ -1,12 +1,11 @@
 .red-page, .red-stack { display: grid; gap: 16px; min-width: 0; }
 .red-page { gap: 24px; }
-.red-page h1, .red-public h1 { font-size: clamp(28px, 4vw, 42px); line-height: 1.12; overflow-wrap: anywhere; }
+.red-page h1:not(.role-home-greeting-title), .red-public h1 { font-size: clamp(28px, 4vw, 42px); line-height: 1.12; overflow-wrap: anywhere; }
 .red-page p, .red-public p { color: var(--muted); overflow-wrap: anywhere; }
-.red-page .role-home-hero h1, .red-page .role-home-hero p { color: var(--glass-muted); }
+.red-page .role-home-hero p { color: var(--glass-muted); }
 .red-page .role-home-hero { align-items: center; flex-wrap: wrap; }
 .red-page .role-home-hero h1 { color: var(--hero-number); }
 .red-page .role-home-hero:has(.role-home-greeting-title) { align-items: end; }
-.red-page .role-home-greeting-title { color: var(--hero-number); }
 .red-welcome-message { margin-top: var(--space-2); max-width: 52ch; font-size: 14px; line-height: 1.5; }
 .red-page .role-home-hero-number { margin: 8px 0; }
 .red-page .role-home-hero > div { min-width: 0; }

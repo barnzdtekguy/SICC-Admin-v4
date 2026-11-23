@@ -38,12 +38,10 @@ function Progress({ profile, teamPage, setActiveTab, liveRevision }) {
         ) : !teamPage && progress.can_add && (
           <button type="button" className="role-home-primary" onClick={() => setActiveTab('red-add')}><Plus size={17} aria-hidden /> Add soul</button>
         )}>
-        {teamPage ? <h1 id={headingId} className="display">My team</h1> : (
-          <>
-            <h2 id={headingId} className="display role-home-greeting-title">{welcomeGreeting(profile.name)}</h2>
-            <p className="red-welcome-message">Here is your progress in the work God has entrusted to you through Operation R.E.D., as of today.</p>
-          </>
-        )}
+        <h1 id={headingId} className={teamPage ? 'display' : 'display role-home-greeting-title'}>
+          {teamPage ? 'My team' : welcomeGreeting(profile.name)}
+        </h1>
+        {!teamPage && <p className="red-welcome-message">Here is your progress to date in the work God has entrusted to you through Operation R.E.D.</p>}
         <p className="role-home-hero-note">Team led by {team.leader_name} · {teamCount}</p>
         {!teamPage && <><div className="display role-home-hero-number">{progress.current}/{progress.target}</div><p>Personal monthly target</p></>}
         {teamPage && leader && <div className="display role-home-hero-number">{progress.team_total}/{progress.team_target}</div>}
@@ -103,7 +101,6 @@ export default function RedCampaign({ activeTab, setActiveTab }) {
   }, [activeTab, profile.id]);
   return (
     <div className="red-page">
-      {activeTab === 'overview' && <h1 className="display">Operation R.E.D.</h1>}
       {activeTab === 'red-board' ? <RedBoard liveRevision={liveRevision} /> : activeTab === 'red-add' ? (
         <>
           <h1 className="display">Add soul</h1>

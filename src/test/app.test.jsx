@@ -132,11 +132,12 @@ describe('Operation R.E.D. onboarding', () => {
       mockApi({ '/auth/me': session(profile), '/red/team': team, '/red/dashboard': progress });
       goto('/app/overview');
       render(<App />);
-      const pageHeading = await screen.findByRole('heading', { name: 'Operation R.E.D.', level: 1 });
       const card = await screen.findByRole('region', { name: greeting });
-      expect(pageHeading.compareDocumentPosition(card) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-      expect(within(card).getByRole('heading', { name: greeting, level: 2 })).toBeInTheDocument();
-      expect(within(card).getByText('Here is your progress in the work God has entrusted to you through Operation R.E.D., as of today.')).toBeInTheDocument();
+      expect(screen.getByRole('main').querySelector('.red-page').firstElementChild).toBe(card.parentElement);
+      expect(screen.queryByRole('heading', { name: 'Operation R.E.D.' })).not.toBeInTheDocument();
+      expect(screen.getByRole('banner')).not.toHaveTextContent('Operation R.E.D.');
+      expect(within(card).getByRole('heading', { name: greeting, level: 1 })).toBeInTheDocument();
+      expect(within(card).getByText('Here is your progress to date in the work God has entrusted to you through Operation R.E.D.')).toBeInTheDocument();
       expect(within(card).getByText('Personal monthly target')).toBeInTheDocument();
     } finally {
       vi.useRealTimers();
@@ -160,7 +161,7 @@ describe('Operation R.E.D. onboarding', () => {
     await user.type(screen.getByRole('textbox', { name: 'Phone number' }), '08012345678');
     await user.type(screen.getByLabelText(/^Password/), 'Granite!Lantern-7731');
     await user.click(screen.getByRole('button', { name: 'Create account and sign in' }));
-    expect(await screen.findByRole('heading', { name: 'Operation R.E.D.' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: /^Good (morning|afternoon|evening), Ada$/, level: 1 })).toBeInTheDocument();
     expect(await screen.findByRole('heading', { name: 'Team roster' })).toBeInTheDocument();
     expect(window.location.pathname).toBe('/app/overview');
     expect(window.location.hash).toBe('');
@@ -211,7 +212,7 @@ describe('Operation R.E.D. onboarding', () => {
     await user.click(screen.getByRole('button', { name: 'Next' }));
     await user.type(screen.getByLabelText('Password'), 'Granite!Lantern-7731');
     await user.click(screen.getByRole('button', { name: /log in$/i }));
-    expect(await screen.findByRole('heading', { name: 'Operation R.E.D.' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: /^Good (morning|afternoon|evening), Bola$/, level: 1 })).toBeInTheDocument();
     expect(window.location.pathname).toBe('/app/overview');
     expect(screen.queryByRole('button', { name: 'Open join link' })).toBeNull();
     expect(calls.find(call => call.path === '/auth/login').body.identifier).toBe('08012345678');

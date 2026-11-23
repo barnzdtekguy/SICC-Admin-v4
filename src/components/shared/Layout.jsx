@@ -202,7 +202,7 @@ export default function Layout({ activeTab, setActiveTab, mobile, children }) {
             <img src="/salem-logo.png" alt="" width="40" height="40" />
             <span>{activeTab === 'overview' ? 'SICC Admin' : pageName}</span>
           </button>
-          <div className="app-page-title display">{pageName}</div>
+          <div className="app-page-title display">{(!redAccount || activeTab !== 'overview') && pageName}</div>
           <button type="button" className="app-header-button app-search-btn" onClick={showSearch} aria-label="Search (Ctrl K)" data-tour-target="search">
             <Search {...icon} /><span>Search</span>
           </button>
