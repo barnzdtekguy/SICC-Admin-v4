@@ -1,7 +1,10 @@
 'use strict';
 const { test, after } = require('node:test');
 const assert = require('node:assert/strict');
+const { createHash, randomUUID } = require('node:crypto');
 const h = require('./helpers');
+const { query } = require('../db');
+const { todayStr } = require('../http');
 const { validatePassword } = require('../../shared/password-policy.mjs');
 
 after(() => h.close());
@@ -91,8 +94,41 @@ test('members need recorded consent; duplicates are caught; soft delete needs a 
   assert.equal((await h.api(bishop, 'post', `/members/${ok.body.data.id}/anonymize`, { reason: 'Requested erasure' })).status, 200);
 });
 
+test('both dashboards count the full directory and can load birthdays', async () => {
+  const admin = await h.loginAgent(await h.makeUser('admin'));
+  const bishop = await h.loginAgent(await h.makeUser('bishop'));
+  const initial = (await h.api(admin, 'get', '/brief')).body.data;
+  const searchName = `Register${h.uniq()}`;
+  const birthday = `2000-${todayStr().slice(5)}`;
+  const imported = createHash('sha256').update(searchName).digest('hex');
+  const rows = Array.from({ length: 52 }, (_, index) => [
+    randomUUID(), index === 0 ? searchName : 'Directory', `Fixture ${index}`, index === 0 ? 'Active Member' : 'Worker',
+    index === 0 ? birthday : null, index === 0 ? imported : null, index === 51 ? '2000-01-01 00:00:00' : null,
+  ]);
+  await query(`INSERT INTO members (id, first_name, last_name, status, date_of_birth, register_import_key, deleted_at)
+    VALUES ${rows.map(() => '(?, ?, ?, ?, ?, ?, ?)').join(', ')}`, rows.flat());
+
+  for (const agent of [bishop, admin]) {
+    const brief = await h.api(agent, 'get', '/brief');
+    assert.equal(brief.status, 200, JSON.stringify(brief.body));
+    assert.equal(brief.body.data.churchMembers, initial.churchMembers + 51);
+    assert.equal(brief.body.data.birthdaysToday, initial.birthdaysToday + 1);
+    assert.equal(brief.body.data.redSouls, initial.redSouls);
+    let total = 0;
+    for (let page = 1; ; page++) {
+      const list = await h.api(agent, 'get', `/church-members?page=${page}`);
+      assert.equal(list.status, 200);
+      total += list.body.data.items.length;
+      if (!list.body.data.hasMore) break;
+    }
+    assert.equal(total, brief.body.data.churchMembers);
+    const search = await h.api(agent, 'get', `/church-members?q=${searchName}`);
+    assert.equal(search.body.data.items.length, 1);
+    assert.equal(search.body.data.items[0].id, rows[0][0]);
+  }
+});
+
 test('SMS key is never returned to the browser and is stored encrypted', async () => {
-  const { query } = require('../db');
   const admin = await h.loginAgent(await h.makeUser('admin'));
   const put = await h.api(admin, 'put', '/sms-config', { api_key: 'SUPERSECRETKEY1234', sender_id: 'SICC' });
   assert.equal(put.status, 200);
