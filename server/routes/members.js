@@ -7,7 +7,7 @@ const { asyncRoute, HttpError, sendData, str, oneOf, validDate, todayStr, normal
 const { secured, requirePerm } = require('../middleware');
 const { can, PRIVILEGED, canViewChurchDirectory } = require('../permissions');
 const { audit, auditThrottled, auditTransaction } = require('../lib/audit');
-const { lockDirectory, insertMember } = require('../lib/church-members');
+const { MEMBER_NAME_SQL, listTodayBirthdays, lockDirectory, insertMember } = require('../lib/church-members');
 const lists = require('../data/lists.json');
 const { notify } = require('../lib/notify');
 
@@ -94,12 +94,18 @@ router.get('/church-members', ...secured, requireChurchDirectory, asyncRoute(asy
   const like = `%${search.replace(/[\\%_]/g, char => `\\${char}`)}%`;
   const page = int(req.query.page, { min: 1, max: 100000, fallback: 1 });
   const pageSize = 50;
-  const where = search ? "deleted_at IS NULL AND CONCAT_WS(' ', first_name, NULLIF(last_name, '')) LIKE ?" : 'deleted_at IS NULL';
+  const where = search ? `deleted_at IS NULL AND ${MEMBER_NAME_SQL} LIKE ?` : 'deleted_at IS NULL';
   const values = search ? [like] : [];
-  const rows = await query(`SELECT id, CONCAT_WS(' ', first_name, NULLIF(last_name, '')) AS name FROM members
+  const rows = await query(`SELECT id, ${MEMBER_NAME_SQL} AS name FROM members
     WHERE ${where} ORDER BY first_name, last_name, id LIMIT ${pageSize + 1} OFFSET ${(page - 1) * pageSize}`, values);
   await auditThrottled(req, `church-members:${req.profile.id}`, 600000, { action: 'members.list', entity_type: 'member', detail: 'Opened church directory' });
   sendData(res, { items: rows.slice(0, pageSize), hasMore: rows.length > pageSize });
+}));
+
+router.get('/church-members/birthdays', ...secured, requirePerm('members.read.all'), asyncRoute(async (req, res) => {
+  const items = await listTodayBirthdays();
+  await auditThrottled(req, `church-birthdays:${req.profile.id}`, 600000, { action: 'members.list', entity_type: 'member', detail: 'Opened today’s birthdays' });
+  sendData(res, { items });
 }));
 
 router.get('/church-members/:id', ...secured, requireChurchDirectory, asyncRoute(async (req, res) => {

@@ -143,6 +143,32 @@ describe('church directory', () => {
   });
 });
 
+describe('today’s birthdays', () => {
+  it.each([
+    ['bishop', ['Amina Example', 'Tomi Example']], ['admin', ['Amina Example', 'Tomi Example']],
+    ['bishop', []], ['admin', []],
+  ])('opens the matching names-only list from the %s birthday card with %j', async (role, names) => {
+    mockApi({
+      '/auth/me': session({ ...PASTOR, role }),
+      '/brief': { birthdaysToday: names.length },
+      '/church-members/birthdays': { items: names.map((name, index) => ({ id: String(index), name })) },
+    });
+    goto('/app/overview');
+    render(<App />);
+    const card = await screen.findByRole('link', { name: /Birthdays today/i });
+    await within(card).findByText(String(names.length));
+    await userEvent.click(card);
+    expect(await screen.findByRole('heading', { name: 'Today’s Birthdays' })).toBeInTheDocument();
+    if (!names.length) {
+      expect(await screen.findByText('No birthdays today.')).toBeInTheDocument();
+      expect(screen.queryByRole('list', { name: 'Birthday names' })).toBeNull();
+    } else {
+      const list = await screen.findByRole('list', { name: 'Birthday names' });
+      expect(within(list).getAllByRole('listitem').map(item => item.textContent)).toEqual(names);
+    }
+  });
+});
+
 describe('Operation R.E.D. onboarding', () => {
   beforeAll(async () => { await import('../components/red/RedCampaign'); });
 

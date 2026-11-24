@@ -4,9 +4,9 @@ import { useAuth } from '../../hooks/useAuth';
 import RoleHome, { attendanceBars, useHomeData } from '../shared/RoleHome';
 import { StatCard, Panel, Badge, DataTable, Btn, Modal, Textarea, Input, Select, Grid, SearchInput, C, Alert, Avatar, InfoRow, StatusBadge, SectionTitle, FilterSelect, EmptyState } from '../shared/UI';
 import { getMembers, getProfiles, getFollowUps, getAttendance, getLogs, getAssignments, createAssignment, updateAssignment, deleteAssignment, getMessageStatus, sendSms, getBrief } from '../../lib/db';
-import { DEPARTMENTS, KDF_AREAS, ROLES, ROLE_COLORS, ROLE_LABELS, getTodaysBirthdays } from '../../data/constants';
+import { DEPARTMENTS, KDF_AREAS, ROLES, ROLE_COLORS, ROLE_LABELS } from '../../data/constants';
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart, Bar, CartesianGrid } from 'recharts';
-import { Users, Star, UserCheck, MapPin, Building2, CheckSquare, TrendingUp, Phone, ClipboardList, BarChart2, Calendar, MessageSquare, Activity, Briefcase, Bell, Clock, Heart, Send, Gift, Inbox, QrCode } from 'lucide-react';
+import { Users, Star, UserCheck, MapPin, Building2, CheckSquare, TrendingUp, Phone, ClipboardList, BarChart2, Calendar, MessageSquare, Activity, Briefcase, Bell, Clock, Heart, Send, Inbox, QrCode } from 'lucide-react';
 
 import ProgrammeAttendance from '../pastor/ProgrammeAttendance';
 import { UserManagement } from '../admin/AdminDashboard';
@@ -19,44 +19,8 @@ export default function BishopDashboard({ activeTab, setActiveTab }) {
 
 const loadHome = () => ({ brief: getBrief() });
 
-function BirthdayWish({ member }) {
-  const wish = `Happy Birthday, ${member.first_name}! The Lord bless and keep you. With best wishes from Bishop Enobong Etteh and the Salem International Christian Centre.`;
-  return (
-    <Btn size="sm" variant="ghost" color={C.gold}
-      onClick={() => window.open(`https://wa.me/234${member.phone?.replace(/^0/, '')}?text=${encodeURIComponent(wish)}`, '_blank', 'noopener,noreferrer')}>
-      <Gift size={20} aria-hidden="true" /> Send wishes
-    </Btn>
-  );
-}
-
-function Birthdays({ onClose }) {
-  const [members, setMembers] = useState(null);
-  const [failed, setFailed] = useState(false);
-  useEffect(() => {
-    let active = true;
-    getMembers().then(data => { if (active) setMembers(getTodaysBirthdays(data)); })
-      .catch(() => { if (active) setFailed(true); });
-    return () => { active = false; };
-  }, []);
-  return (
-    <Modal title="Birthdays today" onClose={onClose}>
-      {failed && <p role="alert">Birthdays are unavailable. Close and reopen to try again.</p>}
-      {!failed && !members && <p role="status">Loading birthdays…</p>}
-      {members?.length === 0 && <p>No birthdays today.</p>}
-      {members?.map(member => (
-        <div className="role-home-birthday-row" key={member.id}>
-          <div><strong>{member.first_name} {member.last_name}</strong>
-            <small>{[member.kdf_area, member.phone].filter(Boolean).join(' · ')}</small></div>
-          {member.phone && <BirthdayWish member={member} />}
-        </div>
-      ))}
-    </Modal>
-  );
-}
-
 function Overview() {
   const { data, reload } = useHomeData(loadHome, 30000);
-  const [birthdaysOpen, setBirthdaysOpen] = useState(false);
   const brief = data?.brief;
   const latest = brief?.attendanceTrend?.at(-1);
   const attention = [
@@ -75,7 +39,7 @@ function Overview() {
         { label: 'New members this week', value: brief?.newMembers7d, to: '/app/growth' },
         { label: 'Follow-ups this week', value: brief?.followUps7d, to: '/app/followups' },
         { label: 'Pending approvals', value: brief?.pendingApprovals, to: '/app/approvals' },
-        { label: 'Birthdays today', value: brief?.birthdaysToday, onClick: brief?.birthdaysToday > 0 ? () => setBirthdaysOpen(true) : undefined },
+        { label: 'Birthdays today', value: brief?.birthdaysToday, to: '/app/members/birthdays' },
       ]}
       chart={{ title: 'Recent service attendance', bars: attendanceBars(brief?.attendanceTrend), to: '/app/reports', unit: 'attendees' }}
       attention={{ rows: attention, to: '/app/approvals', empty: brief ? undefined : 'Review items are unavailable.' }}
@@ -85,9 +49,8 @@ function Overview() {
         { label: 'Follow-ups', to: '/app/followups', Icon: Phone },
         { label: 'Messages', to: '/app/communication', Icon: MessageSquare },
       ]}
-      loading={!data} error={data?.error} onRetry={reload}>
-      {birthdaysOpen && <Birthdays onClose={() => setBirthdaysOpen(false)} />}
-    </RoleHome>
+      loading={!data} error={data?.error} onRetry={reload}
+    />
   );
 }
 

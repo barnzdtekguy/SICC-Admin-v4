@@ -7,6 +7,7 @@ const { asyncRoute, HttpError, sendData, str, validDate, todayStr, addDays, norm
 const { secured, requirePerm, exportLimiter, messageLimiter } = require('../middleware');
 const { PRIVILEGED } = require('../permissions');
 const { audit, verifyChain } = require('../lib/audit');
+const { listTodayBirthdays } = require('../lib/church-members');
 const { encrypt, decrypt, isEncrypted } = require('../lib/crypto');
 const { toCsv } = require('../lib/csv');
 const { sendSms, sendWhatsAppTemplate, toIntlNumber } = require('../lib/messaging');
@@ -245,8 +246,6 @@ router.get('/reports/submitted', ...secured, requirePerm('reports.org'), asyncRo
 // ---------------------------------------------------------------- role-aware morning brief
 router.get('/brief', ...secured, requirePerm('brief.read'), asyncRoute(async (req, res) => {
   const p = req.profile; const today = todayStr(); const out = { role: p.role, today };
-  const birthday = today.slice(5).split('-').map(Number);
-  const birthdaySql = 'MONTH(date_of_birth) = ? AND DAYOFMONTH(date_of_birth) = ?';
   const overdueSql = "status = 'In Progress' AND deleted_at IS NULL AND created_at < DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 7 DAY)";
   if (PRIVILEGED.includes(p.role)) {
     const [trend, newNow, newPrev, overdue, pending, birthdays, unverified, followups, churchMembers, redSouls] = await Promise.all([
@@ -255,19 +254,20 @@ router.get('/brief', ...secured, requirePerm('brief.read'), asyncRoute(async (re
       query('SELECT COUNT(*) AS n FROM members WHERE deleted_at IS NULL AND register_import_key IS NULL AND created_at >= DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 14 DAY) AND created_at < DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 7 DAY)'),
       query(`SELECT COUNT(*) AS n FROM follow_ups WHERE ${overdueSql}`),
       query("SELECT COUNT(*) AS n FROM correction_requests WHERE status = 'pending'"),
-      query(`SELECT COUNT(*) AS n FROM members WHERE deleted_at IS NULL AND ${birthdaySql}`, birthday),
+      listTodayBirthdays(),
       query("SELECT COUNT(*) AS n FROM attendance WHERE status = 'recorded' AND created_at < DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 1 DAY)"),
       query("SELECT COUNT(*) AS n FROM follow_ups WHERE deleted_at IS NULL AND created_at >= DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 7 DAY)"),
       query('SELECT COUNT(*) AS n FROM members WHERE deleted_at IS NULL'),
       query('SELECT COUNT(*) AS n FROM red_souls WHERE invalidated_at IS NULL'),
     ]);
-    Object.assign(out, { attendanceTrend: trend.reverse(), newMembers7d: newNow[0].n, newMembersPrev7d: newPrev[0].n, overdueFollowUps: overdue[0].n, pendingApprovals: pending[0].n, birthdaysToday: birthdays[0].n, unverifiedAttendance: unverified[0].n, followUps7d: followups[0].n, churchMembers: churchMembers[0].n, redSouls: redSouls[0].n });
+    Object.assign(out, { attendanceTrend: trend.reverse(), newMembers7d: newNow[0].n, newMembersPrev7d: newPrev[0].n, overdueFollowUps: overdue[0].n, pendingApprovals: pending[0].n, birthdaysToday: birthdays.length, unverifiedAttendance: unverified[0].n, followUps7d: followups[0].n, churchMembers: churchMembers[0].n, redSouls: redSouls[0].n });
   } else if (p.role === 'pastor') {
+    const birthday = today.slice(5).split('-').map(Number);
     const [mine, overdue, quiet, birthdays] = await Promise.all([
       query('SELECT COUNT(*) AS n FROM members WHERE deleted_at IS NULL AND registered_by = ?', [p.id]),
       query(`SELECT id, member_name, created_at FROM follow_ups WHERE ${overdueSql} AND pastor_id = ? ORDER BY created_at LIMIT 10`, [p.id]),
       query(`SELECT m.id, m.first_name, m.last_name, m.status FROM members m WHERE m.deleted_at IS NULL AND m.registered_by = ? AND NOT EXISTS (SELECT 1 FROM follow_ups f WHERE f.member_id = m.id AND f.deleted_at IS NULL AND f.created_at >= DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 14 DAY)) ORDER BY m.created_at DESC LIMIT 10`, [p.id]),
-      query(`SELECT id, first_name, last_name FROM members WHERE deleted_at IS NULL AND registered_by = ? AND ${birthdaySql} LIMIT 10`, [p.id, ...birthday]),
+      query('SELECT id, first_name, last_name FROM members WHERE deleted_at IS NULL AND registered_by = ? AND MONTH(date_of_birth) = ? AND DAYOFMONTH(date_of_birth) = ? LIMIT 10', [p.id, ...birthday]),
     ]);
     Object.assign(out, { myMembers: mine[0].n, overdue, needsContact: quiet, birthdays });
   } else if (p.role === 'kdf_coordinator') {

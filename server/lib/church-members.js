@@ -1,8 +1,22 @@
 'use strict';
 const { randomUUID } = require('node:crypto');
-const { queryOn } = require('../db');
-const { phoneLast10 } = require('../http');
+const { query, queryOn } = require('../db');
+const { phoneLast10, todayInLagos } = require('../http');
 const { normalizePhoneLogin } = require('./phone-login');
+
+const MEMBER_NAME_SQL = "CONCAT_WS(' ', first_name, NULLIF(last_name, ''))";
+const BIRTHDAY_MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+const partialBirthdayNote = (month, day) => `Birthday: ${day} ${BIRTHDAY_MONTHS[month - 1]}`;
+
+function listTodayBirthdays(now = new Date()) {
+  const [, month, day] = todayInLagos(now).split('-').map(Number);
+  // The register importer stores resolved yearless birthdays in this exact note format.
+  return query(`SELECT id, ${MEMBER_NAME_SQL} AS name FROM members
+    WHERE deleted_at IS NULL AND (
+      (MONTH(date_of_birth) = ? AND DAYOFMONTH(date_of_birth) = ?)
+      OR (date_of_birth IS NULL AND register_import_key IS NOT NULL AND BINARY notes = BINARY ?)
+    ) ORDER BY first_name, last_name, id`, [month, day, partialBirthdayNote(month, day)]);
+}
 
 const titlePrefix = /^(?:(?:archbishop|bishop|rev(?:erend)?\.?|pastor|pst\.?|apostle|evangelist|elder|deacon(?:ess)?|dr\.?|prof\.?|barr?\.?|mrs?\.?|ms\.?|miss|bro\.?|sis\.?)\s+)+/iu;
 
@@ -63,4 +77,5 @@ async function insertMember(conn, data) {
   return record;
 }
 
-module.exports = { splitTitle, splitName, identity, matchMember, lockDirectory, memberIdentities, insertMember };
+module.exports = { MEMBER_NAME_SQL, BIRTHDAY_MONTHS, partialBirthdayNote, listTodayBirthdays,
+  splitTitle, splitName, identity, matchMember, lockDirectory, memberIdentities, insertMember };

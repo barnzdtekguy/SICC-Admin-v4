@@ -4,7 +4,8 @@ const assert = require('node:assert/strict');
 const { createHash, randomUUID } = require('node:crypto');
 const h = require('./helpers');
 const { query } = require('../db');
-const { todayStr } = require('../http');
+const { addDays, todayInLagos } = require('../http');
+const { listTodayBirthdays, partialBirthdayNote } = require('../lib/church-members');
 const { validatePassword } = require('../../shared/password-policy.mjs');
 
 after(() => h.close());
@@ -94,26 +95,44 @@ test('members need recorded consent; duplicates are caught; soft delete needs a 
   assert.equal((await h.api(bishop, 'post', `/members/${ok.body.data.id}/anonymize`, { reason: 'Requested erasure' })).status, 200);
 });
 
-test('both dashboards count the full directory and can load birthdays', async () => {
+test('both dashboards count the full directory and match the Lagos birthday list', async () => {
   const admin = await h.loginAgent(await h.makeUser('admin'));
   const bishop = await h.loginAgent(await h.makeUser('bishop'));
   const initial = (await h.api(admin, 'get', '/brief')).body.data;
   const searchName = `Register${h.uniq()}`;
-  const birthday = `2000-${todayStr().slice(5)}`;
-  const imported = createHash('sha256').update(searchName).digest('hex');
+  const today = todayInLagos();
+  const [, month, day] = today.split('-').map(Number);
+  const birthday = `2000-${today.slice(5)}`;
+  const notes = partialBirthdayNote(month, day);
   const rows = Array.from({ length: 52 }, (_, index) => [
     randomUUID(), index === 0 ? searchName : 'Directory', `Fixture ${index}`, index === 0 ? 'Active Member' : 'Worker',
-    index === 0 ? birthday : null, index === 0 ? imported : null, index === 51 ? '2000-01-01 00:00:00' : null,
+    index === 1 || index === 51 ? birthday : null,
+    index === 0 ? notes : index === 2 ? `${notes}?` : null,
+    index === 0 || index === 2 ? createHash('sha256').update(`${searchName}-${index}`).digest('hex') : null,
+    index === 51 ? '2000-01-01 00:00:00' : null,
   ]);
-  await query(`INSERT INTO members (id, first_name, last_name, status, date_of_birth, register_import_key, deleted_at)
-    VALUES ${rows.map(() => '(?, ?, ?, ?, ?, ?, ?)').join(', ')}`, rows.flat());
+  await query(`INSERT INTO members (id, first_name, last_name, status, date_of_birth, notes, register_import_key, deleted_at)
+    VALUES ${rows.map(() => '(?, ?, ?, ?, ?, ?, ?, ?)').join(', ')}`, rows.flat());
+
+  const birthdayIds = [rows[0][0], rows[1][0]];
+  const utcYesterday = addDays(today, -1);
+  const beforeMidnight = await listTodayBirthdays(new Date(`${utcYesterday}T22:59:59Z`));
+  const atMidnight = await listTodayBirthdays(new Date(`${utcYesterday}T23:00:00Z`));
+  assert.ok(beforeMidnight.every(member => !birthdayIds.includes(member.id)));
+  assert.ok(birthdayIds.every(id => atMidnight.some(member => member.id === id)));
 
   for (const agent of [bishop, admin]) {
     const brief = await h.api(agent, 'get', '/brief');
     assert.equal(brief.status, 200, JSON.stringify(brief.body));
     assert.equal(brief.body.data.churchMembers, initial.churchMembers + 51);
-    assert.equal(brief.body.data.birthdaysToday, initial.birthdaysToday + 1);
+    assert.equal(brief.body.data.birthdaysToday, initial.birthdaysToday + 2);
     assert.equal(brief.body.data.redSouls, initial.redSouls);
+    const birthdays = await h.api(agent, 'get', '/church-members/birthdays');
+    assert.equal(birthdays.status, 200);
+    const items = birthdays.body.data.items;
+    assert.equal(items.length, brief.body.data.birthdaysToday);
+    assert.ok(birthdayIds.every(id => items.some(member => member.id === id)));
+    for (const member of items) assert.deepEqual(Object.keys(member).sort(), ['id', 'name']);
     let total = 0;
     for (let page = 1; ; page++) {
       const list = await h.api(agent, 'get', `/church-members?page=${page}`);
@@ -126,6 +145,8 @@ test('both dashboards count the full directory and can load birthdays', async ()
     assert.equal(search.body.data.items.length, 1);
     assert.equal(search.body.data.items[0].id, rows[0][0]);
   }
+  const pastor = await h.loginAgent(await h.makeUser('pastor'));
+  assert.equal((await h.api(pastor, 'get', '/church-members/birthdays')).status, 403);
 });
 
 test('SMS key is never returned to the browser and is stored encrypted', async () => {

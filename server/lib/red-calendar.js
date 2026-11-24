@@ -1,15 +1,9 @@
 'use strict';
-const { addDays, validDate } = require('../http');
+const { addDays, todayInLagos, validDate } = require('../http');
 
-const lagosDate = new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Lagos', year: 'numeric', month: '2-digit', day: '2-digit' });
 const dayMs = 86400000;
 const monthOf = date => `${date.slice(0, 7)}-01`;
 const daysBetween = (from, to) => Math.round((Date.parse(to) - Date.parse(from)) / dayMs);
-
-function todayInLagos(now = new Date()) {
-  const parts = Object.fromEntries(lagosDate.formatToParts(now).map(({ type, value }) => [type, value]));
-  return `${parts.year}-${parts.month}-${parts.day}`;
-}
 
 function shiftMonth(month, offset) {
   const date = new Date(monthOf(month));

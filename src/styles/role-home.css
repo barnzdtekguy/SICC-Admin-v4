@@ -145,8 +145,6 @@
   border-radius: 12px;
 }
 .role-home-birthdays { list-style-position: inside; }
-.role-home-birthday-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--line); }
-.role-home-birthday-row small { display: block; color: var(--muted); font-size: 12px; }
 .role-home-attendance-form { display: grid; gap: 16px; }
 .role-home-attendance-form > button { justify-self: end; }
 .role-home-error { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; color: var(--muted); }

@@ -14,7 +14,7 @@
   background: var(--card);
 }
 .church-directory-list li + li { border-top: 1px solid var(--line); }
-.church-directory-list a {
+.church-directory-list a, .church-directory-name {
   display: flex;
   align-items: center;
   justify-content: space-between;

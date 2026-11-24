@@ -123,12 +123,3 @@ export function matchKDFArea(address) {
   }
   return null;
 }
-export function getTodaysBirthdays(members) {
-  const today = new Date();
-  const mm = String(today.getMonth() + 1).padStart(2, '0');
-  const dd = String(today.getDate()).padStart(2, '0');
-  return members.filter(m => {
-    if (!m.date_of_birth) return false;
-    return m.date_of_birth.slice(5, 7) === mm && m.date_of_birth.slice(8, 10) === dd;
-  });
-}

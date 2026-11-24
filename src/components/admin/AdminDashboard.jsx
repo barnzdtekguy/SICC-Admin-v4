@@ -39,7 +39,7 @@ function Overview() {
         { label: 'Operation R.E.D.', value: brief?.redSouls, to: '/app/red', note: 'Souls recorded' },
         { label: 'Staff on roster', value: staff?.length, to: '/app/staff' },
         { label: 'Pending approvals', value: brief?.pendingApprovals, to: '/app/approvals' },
-        { label: 'Birthdays today', value: brief?.birthdaysToday },
+        { label: 'Birthdays today', value: brief?.birthdaysToday, to: '/app/members/birthdays' },
       ]}
       chart={{ title: 'Recent service attendance', bars: attendanceBars(brief?.attendanceTrend), to: '/app/attendance', unit: 'attendees' }}
       attention={{ rows: attention, to: '/app/approvals', empty: brief ? undefined : 'Review items are unavailable.' }}

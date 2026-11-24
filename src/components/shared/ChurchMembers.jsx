@@ -93,7 +93,27 @@ function MemberDetails({ memberId }) {
   );
 }
 
+function TodayBirthdays() {
+  const result = useDirectoryRequest('/church-members/birthdays');
+  const items = result?.data?.items;
+  return (
+    <section className="church-directory" aria-labelledby="church-birthdays-title">
+      <Link className="role-home-link church-directory-back" to="/app/overview"><ArrowLeft size={18} aria-hidden="true" /> Back to dashboard</Link>
+      <h1 className="display" id="church-birthdays-title">Today’s Birthdays</h1>
+      {!result && <p role="status">Loading birthdays…</p>}
+      {result?.error && <Alert type="error" message={result.error} />}
+      {items?.length === 0 && <p role="status">No birthdays today.</p>}
+      {items?.length > 0 && (
+        <ul className="church-directory-list" aria-label="Birthday names">
+          {items.map(({ id, name }) => <li key={id}><span className="church-directory-name">{name}</span></li>)}
+        </ul>
+      )}
+    </section>
+  );
+}
+
 export default function ChurchMembers() {
   const { memberId } = useParams();
+  if (memberId === 'birthdays') return <TodayBirthdays />;
   return memberId ? <MemberDetails memberId={memberId} /> : <MemberList />;
 }

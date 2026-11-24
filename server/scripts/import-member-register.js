@@ -5,9 +5,7 @@ const { join } = require('node:path');
 const { pool, query } = require('../db');
 const { validDate, todayStr } = require('../http');
 const { auditTransaction } = require('../lib/audit');
-const { identity, splitTitle, splitName, matchMember, lockDirectory, memberIdentities, insertMember } = require('../lib/church-members');
-
-const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+const { BIRTHDAY_MONTHS, partialBirthdayNote, identity, splitTitle, splitName, matchMember, lockDirectory, memberIdentities, insertMember } = require('../lib/church-members');
 
 function birthdayFields(value) {
   if (!value) return {};
@@ -17,9 +15,9 @@ function birthdayFields(value) {
   const numeric = value.match(/^(\d{2})-(\d{2})$/);
   const word = partial?.slice(1).find(part => /^[a-z]+$/.test(part));
   const day = Number(numeric?.[2] ?? partial?.slice(1).find(part => /^\d+$/.test(part)));
-  const month = numeric ? Number(numeric[1]) : months.findIndex(full => word?.length >= 3 && full.toLowerCase().startsWith(word)) + 1;
+  const month = numeric ? Number(numeric[1]) : BIRTHDAY_MONTHS.findIndex(full => word?.length >= 3 && full.toLowerCase().startsWith(word)) + 1;
   if (!validDate(`2000-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`)) return null;
-  return { notes: `Birthday: ${day} ${months[month - 1]}` };
+  return { notes: partialBirthdayNote(month, day) };
 }
 
 function readRegister(path) {

@@ -16,12 +16,17 @@ function sendData(res, data, status = 200) {
 }
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+const lagosDate = new Intl.DateTimeFormat('en-CA', { timeZone: 'Africa/Lagos', year: 'numeric', month: '2-digit', day: '2-digit' });
 function validDate(value) {
   if (!DATE_RE.test(String(value || ''))) return false;
   const date = new Date(`${value}T00:00:00.000Z`);
   return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
 }
 const todayStr = () => new Date().toISOString().slice(0, 10);
+function todayInLagos(now = new Date()) {
+  const parts = Object.fromEntries(lagosDate.formatToParts(now).map(({ type, value }) => [type, value]));
+  return `${parts.year}-${parts.month}-${parts.day}`;
+}
 function addDays(dateStr, days) {
   const d = new Date(`${dateStr}T00:00:00.000Z`);
   d.setUTCDate(d.getUTCDate() + days);
@@ -56,4 +61,4 @@ function pick(source, keys) {
   return Object.fromEntries(keys.filter(key => source[key] !== undefined).map(key => [key, source[key]]));
 }
 
-module.exports = { HttpError, asyncRoute, sendData, validDate, todayStr, addDays, str, oneOf, normalizePhone, phoneLast10, pick };
+module.exports = { HttpError, asyncRoute, sendData, validDate, todayStr, todayInLagos, addDays, str, oneOf, normalizePhone, phoneLast10, pick };
