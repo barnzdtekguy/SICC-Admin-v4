@@ -22,6 +22,7 @@
     "test:all": "npm test && npm run test:ui",
     "test:smoke": "node scripts/tests/smoke.mjs",
     "find-duplicates": "node server/scripts/find-duplicates.js",
+    "import-members": "node server/scripts/import-member-register.js",
     "smoke": "node scripts/smoke.mjs"
   },
   "dependencies": {

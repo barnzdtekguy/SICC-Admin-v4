@@ -61,10 +61,10 @@ router.post('/profiles', ...secured, requirePerm('profiles.manage'), asyncRoute(
   const avatar = String(body.avatar || name.split(/\s+/).map(p => p[0]).join('').slice(0, 2)).toUpperCase().slice(0, 8);
   const phone = str(body.phone, { max: 40 });
   await query(
-    `INSERT INTO profiles (id, name, email, phone, phone_login, role, department, kdf_area, avatar, password_hash, must_change_password, created_by)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)`,
+    `INSERT INTO profiles (id, name, email, phone, phone_login, role, department, kdf_area, avatar, password_hash, must_change_password, created_by, created_by_role)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)`,
     [id, name, email, phone, normalizePhoneLogin(phone), body.role, body.role === 'department_leader' ? body.department || null : null,
-      body.role === 'kdf_coordinator' ? body.kdf_area || null : null, avatar, await hashPassword(body.password), req.profile.id]);
+      body.role === 'kdf_coordinator' ? body.kdf_area || null : null, avatar, await hashPassword(body.password), req.profile.id, req.profile.role]);
   const created = (await query('SELECT * FROM profiles WHERE id = ?', [id]))[0];
   await audit(req, { action: 'user.create', entity_type: 'profile', entity_id: id, detail: `${name} (${body.role})`, after: publicProfile(created) });
   sendData(res, publicProfile(created), 201);

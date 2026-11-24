@@ -3,7 +3,7 @@ import { ROLES, isRedRole } from '../../data/constants';
 const descriptions = {
   growth: 'See how the church is growing. Review member counts and trends over time.',
   staff: 'Review church staff and their activity. Open a staff record to see the details available to you.',
-  members: 'Browse the church member directory. Search by name or phone, or select a record to open its profile.',
+  members: 'Search the church directory by name. Select a name to open the member’s details.',
   kdf: 'Find a KDF area and see its members and activity. Select an area to review its details.',
   departments: 'Browse church departments. Choose a department to review its members and activity.',
   followups: 'Review pastoral follow-ups. Use the list and filters to find visits, outcomes, and people who still need contact.',

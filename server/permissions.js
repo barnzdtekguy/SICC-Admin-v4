@@ -48,6 +48,8 @@ const PERMISSIONS = {
 };
 
 const can = (role, permission) => (PERMISSIONS[permission] || []).includes(role);
+const canViewChurchDirectory = profile => PRIVILEGED.includes(profile.role)
+  || (profile.role === 'pastor' && profile.created_by_role === 'admin');
 
 // Who may create / change / deactivate whom. Only the Bishop manages privileged accounts.
 function canManageRole(actorRole, targetRole) {
@@ -57,4 +59,4 @@ function canManageRole(actorRole, targetRole) {
   return false;
 }
 
-module.exports = { ROLES, CHURCH_ROLES, RED_ROLES, PRIVILEGED, PERMISSIONS, can, canManageRole };
+module.exports = { ROLES, CHURCH_ROLES, RED_ROLES, PRIVILEGED, PERMISSIONS, can, canManageRole, canViewChurchDirectory };

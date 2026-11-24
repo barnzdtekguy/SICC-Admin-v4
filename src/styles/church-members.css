@@ -1,0 +1,45 @@
+.church-directory {
+  display: grid;
+  gap: 16px;
+  width: min(100%, 42rem);
+  margin-inline: auto;
+}
+.church-directory h1 { margin: 0; overflow-wrap: anywhere; }
+.church-directory-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--card);
+}
+.church-directory-list li + li { border-top: 1px solid var(--line); }
+.church-directory-list a {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 48px;
+  padding: 12px 16px;
+  color: var(--text);
+  text-decoration: none;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.church-directory-list svg { flex: none; color: var(--muted); }
+.church-directory-list a:hover { text-decoration: underline; }
+.church-directory-pages { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.church-directory-back { justify-self: start; }
+.church-member-card {
+  display: grid;
+  gap: 12px;
+  justify-items: start;
+  padding: clamp(16px, 4vw, 28px);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--card);
+}
+.church-member-card dl { width: 100%; margin: 0; }
+.church-member-card dl div { padding-block: 10px; border-top: 1px solid var(--line); }
+.church-member-card dt { font-weight: 600; color: var(--muted); }
+.church-member-card dd { margin: 3px 0 0; overflow-wrap: anywhere; white-space: pre-wrap; }

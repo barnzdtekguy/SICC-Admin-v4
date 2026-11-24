@@ -34,6 +34,7 @@ const GOV = [
 ];
 const SECURITY = { key: 'security', label: 'Security & devices', group: 'Account' };
 const RED = { key: 'red', label: 'Operation R.E.D.' };
+const CHURCH_MEMBERS = { key: 'members', label: 'Church Members' };
 const RED_HOME = { key: 'overview', label: 'Operation R.E.D.' };
 const RED_TEAM = { key: 'red-team', label: 'My team' };
 const RED_SOULS = { key: 'red-souls', label: 'My souls' };
@@ -42,17 +43,17 @@ const RED_BOARD = { key: 'red-board', label: 'Teams Board' };
 
 export const NAV = {
   [ROLES.BISHOP]: [
-    { key: 'overview', label: 'Overview' }, { key: 'growth', label: 'Church growth' }, { key: 'staff', label: 'Staff monitor' }, { key: 'members', label: 'All members' },
+    { key: 'overview', label: 'Overview' }, { key: 'growth', label: 'Church growth' }, { key: 'staff', label: 'Staff monitor' }, CHURCH_MEMBERS,
     { key: 'kdf', label: 'KDF areas' }, { key: 'departments', label: 'Departments' }, { key: 'followups', label: 'Follow-up reports' }, { key: 'programmes', label: 'Programme attendance' },
     { key: 'communication', label: 'Communication' }, { key: 'reports', label: 'Reports' }, { key: 'assignments', label: 'Assignments' }, RED, { key: 'users', label: 'User accounts', group: 'Governance' }, ...GOV, SECURITY,
   ],
   [ROLES.ADMIN]: [
-    { key: 'overview', label: 'Dashboard' }, { key: 'users', label: 'User management' }, { key: 'staff', label: 'Staff management' }, { key: 'members', label: 'All members' },
+    { key: 'overview', label: 'Dashboard' }, { key: 'users', label: 'User management' }, { key: 'staff', label: 'Staff management' }, CHURCH_MEMBERS,
     { key: 'departments', label: 'Departments' }, { key: 'kdf', label: 'KDF management' }, { key: 'attendance', label: 'Attendance' }, { key: 'followups', label: 'Follow-up reports' },
     { key: 'programmes', label: 'Programme attendance' }, { key: 'reports', label: 'Reports' }, RED, { key: 'settings', label: 'Settings' }, ...GOV, SECURITY,
   ],
   [ROLES.PASTOR]: [
-    { key: 'overview', label: 'My dashboard' }, { key: 'register', label: 'Register member' }, { key: 'myMembers', label: 'My members' }, { key: 'followup', label: 'Follow-up' },
+    { key: 'overview', label: 'My dashboard' }, { key: 'register', label: 'Register member' }, { key: 'myMembers', label: 'My members' }, CHURCH_MEMBERS, { key: 'followup', label: 'Follow-up' },
     { key: 'programmes', label: 'Programme attendance' }, { key: 'reports', label: 'My reports' }, { key: 'approvals', label: 'My corrections', group: 'Governance' }, SECURITY,
   ],
   [ROLES.DEPARTMENT_LEADER]: [
@@ -65,6 +66,9 @@ export const NAV = {
   [ROLES.RED_LEADER]: [RED_HOME, RED_SOULS, RED_ADD, RED_BOARD, RED_TEAM, { key: 'red-join', label: 'Join link' }, SECURITY],
   [ROLES.RED_MEMBER]: [RED_HOME, RED_SOULS, RED_ADD, RED_BOARD, RED_TEAM, SECURITY],
 };
+
+export const navigationFor = profile => (NAV[profile.role] || []).filter(item =>
+  item !== CHURCH_MEMBERS || profile.role !== ROLES.PASTOR || profile.church_directory_access);
 
 
 const DOCK = {
@@ -130,7 +134,7 @@ export default function Layout({ activeTab, setActiveTab, mobile, children }) {
 
   const role = profile.role;
   const redAccount = isRedRole(role);
-  const nav = NAV[role] || [];
+  const nav = navigationFor(profile);
   const pageName = nav.find(item => item.key === activeTab)?.label || 'Dashboard';
   const dockKeys = ['overview', ...(DOCK[role] || [])];
   const initials = profile.avatar || (profile.name || '?').split(' ').map(part => part[0]).join('').slice(0, 2).toUpperCase();

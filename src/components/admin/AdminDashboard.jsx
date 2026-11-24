@@ -13,16 +13,16 @@ import { Users, UserCheck, MapPin, Building2, CheckSquare, TrendingUp, Phone, Cl
 import ProgrammeAttendance from '../pastor/ProgrammeAttendance';
 
 export default function AdminDashboard({ activeTab, setActiveTab }) {
-  const map = { overview: Overview, users: UserManagement, staff: StaffManagement, members: AllMembers, departments: DeptMgmt, kdf: KDFMgmt, attendance: Attendance, followups: FollowUps, programmes: ProgrammeAttendance, reports: Reports, settings: Settings_ };
+  const map = { overview: Overview, users: UserManagement, staff: StaffManagement, departments: DeptMgmt, kdf: KDFMgmt, attendance: Attendance, followups: FollowUps, programmes: ProgrammeAttendance, reports: Reports, settings: Settings_ };
   const Comp = map[activeTab] || Overview;
   return <Comp setActiveTab={setActiveTab} />;
 }
 
-const loadHome = () => ({ brief: getBrief(), members: getMembers(), profiles: getProfiles() });
+const loadHome = () => ({ brief: getBrief(), profiles: getProfiles() });
 
 function Overview() {
-  const { data, reload } = useHomeData(loadHome);
-  const { brief, members, profiles } = data || {};
+  const { data, reload } = useHomeData(loadHome, 30000);
+  const { brief, profiles } = data || {};
   const weeklyChange = brief?.newMembersPrev7d == null ? null : brief.newMembers7d - brief.newMembersPrev7d;
   const attention = [
     { title: 'Pending approvals', value: brief?.pendingApprovals, to: '/app/approvals' },
@@ -32,11 +32,11 @@ function Overview() {
   const staff = profiles?.filter(profile => [ROLES.PASTOR, ROLES.DEPARTMENT_LEADER, ROLES.KDF_COORDINATOR].includes(profile.role));
   return (
     <RoleHome
-      hero={{ label: 'Total members', value: members?.length,
-        note: brief?.newMembers7d == null ? null : `${brief.newMembers7d} registered in the last seven days`,
+      hero={{ label: 'Church Members', value: brief?.churchMembers, to: '/app/members',
         action: { label: 'View members', to: '/app/members', Icon: Users } }}
       stats={[
         { label: 'New members this week', value: brief?.newMembers7d, to: '/app/members', note: weeklyChange ? `${weeklyChange > 0 ? '+' : ''}${weeklyChange} vs last week` : null },
+        { label: 'Operation R.E.D.', value: brief?.redSouls, to: '/app/red', note: 'Souls recorded' },
         { label: 'Staff on roster', value: staff?.length, to: '/app/staff' },
         { label: 'Pending approvals', value: brief?.pendingApprovals, to: '/app/approvals' },
         { label: 'Birthdays today', value: brief?.birthdaysToday },
@@ -221,46 +221,6 @@ function StaffManagement() {
           </Panel>
         );
       })}
-    </div>
-  );
-}
-
-function AllMembers() {
-  const [members, setMembers] = useState([]);
-  const [search, setSearch] = useState('');
-  const [filterStatus, setFilterStatus] = useState('');
-  const [filterKDF, setFilterKDF] = useState('');
-  useEffect(() => { getMembers().then(setMembers); }, []);
-  const filtered = members.filter(m =>
-    `${m.first_name} ${m.last_name} ${m.phone} ${m.address} ${m.kdf_area} ${m.department}`.toLowerCase().includes(search.toLowerCase())
-    && (!filterStatus || m.status === filterStatus)
-    && (!filterKDF || m.kdf_area === filterKDF)
-  );
-  const kdfOptions = [...new Set(members.map(m => m.kdf_area))].filter(Boolean).map(k => ({ value: k, label: k }));
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
-        <div style={{ flex: 1, minWidth: 200 }}><SearchInput value={search} onChange={setSearch} placeholder="Search name, phone, address, KDF..." /></div>
-        <FilterSelect value={filterStatus} onChange={setFilterStatus} options={['New Convert', 'Active Member', 'Worker', 'Evangelism Contact'].map(s => ({ value: s, label: s }))} placeholder="All statuses" />
-        <FilterSelect value={filterKDF} onChange={setFilterKDF} options={kdfOptions} placeholder="All KDF areas" />
-        <Badge label={`${filtered.length} of ${members.length}`} color={C.gold} />
-      </div>
-      <Panel>
-        <DataTable onRowClick={r => window.dispatchEvent(new CustomEvent('sicc:open-member', { detail: r.id }))} exportName="members"
-          columns={[
-            { key: 'name', label: 'Name', render: (_, r) => <strong style={{ color: C.textPrimary }}>{r.first_name} {r.last_name}</strong> },
-            { key: 'phone', label: 'Phone' },
-            { key: 'address', label: 'Address' },
-            { key: 'kdf_area', label: 'KDF area', render: v => <Badge label={v} color={C.purple} /> },
-            { key: 'department', label: 'Department', render: v => v || 'N/A' },
-            { key: 'status', label: 'Status', render: v => <StatusBadge status={v} /> },
-            { key: 'date_of_birth', label: 'DOB', render: v => v || 'N/A' },
-            { key: 'spiritual_status', label: 'Spiritual' },
-            { key: 'registered_by_name', label: 'Registered By' },
-          ]}
-          rows={filtered} emptyText="No members registered yet."
-        />
-      </Panel>
     </div>
   );
 }

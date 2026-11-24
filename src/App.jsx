@@ -8,7 +8,8 @@ import ErrorBoundary from './components/shared/ErrorBoundary';
 import { ROLES } from './data/constants';
 import { C } from './lib/theme';
 import { PageSkeleton } from './components/shared/UI';
-import Layout, { NAV } from './components/shared/Layout';
+import Layout, { navigationFor } from './components/shared/Layout';
+const ChurchMembers = lazy(() => import('./components/shared/ChurchMembers'));
 const LandingPage = lazy(() => import('./components/LandingPage'));
 const LoginPage = lazy(() => import('./components/auth/LoginPage'));
 const SecurityGate = lazy(() => import('./components/security/SecurityGate'));
@@ -63,19 +64,20 @@ function Login() {
 
 function Dashboard() {
   const { profile, isAuthenticated, restrictions } = useAuth();
-  const { tab } = useParams();
+  const { tab, memberId } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
   const phoneLayout = useSyncExternalStore(subscribeToPhoneLayout, matchesPhoneLayout, () => false);
 
-  if (!isAuthenticated) return <Navigate to="/login" replace state={{ from: location.pathname }} />;
+  if (!isAuthenticated) return <Navigate to="/login" replace state={{ from: location.pathname + location.search }} />;
   if (restrictions.length) return <SecurityGate />;
 
-  const nav = NAV[profile.role] || [];
-  if (!tab || !nav.some(n => n.key === tab)) return <Navigate to="/app/overview" replace />;
+  const nav = navigationFor(profile);
+  if (!tab || !nav.some(n => n.key === tab) || (memberId && tab !== 'members')) return <Navigate to="/app/overview" replace />;
   const setActiveTab = key => navigate(`/app/${key}`);
   const Extra = EXTRA_SCREENS[tab];
   const renderDashboard = () => {
+    if (tab === 'members') return <ChurchMembers />;
     if (Extra) return <Extra setActiveTab={setActiveTab} />;
     switch (profile.role) {
       case ROLES.BISHOP: return <BishopDashboard activeTab={tab} setActiveTab={setActiveTab} />;
@@ -114,6 +116,7 @@ function AppRoutes() {
         <Route path="/red/invite/:kind" element={<RedInvite />} />
         <Route path="/app" element={<Dashboard />} />
         <Route path="/app/:tab" element={<Dashboard />} />
+        <Route path="/app/:tab/:memberId" element={<Dashboard />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Suspense>

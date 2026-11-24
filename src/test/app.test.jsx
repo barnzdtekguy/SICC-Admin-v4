@@ -109,6 +109,40 @@ describe('routing and auth gates', () => {
   });
 });
 
+describe('church directory', () => {
+  it.each(['bishop', 'admin'])('opens the names-only directory from the %s membership count', async role => {
+    mockApi({
+      '/auth/me': session({ ...PASTOR, role }),
+      '/brief': { churchMembers: 42, redSouls: 5 },
+      '/church-members': { items: [{ id: 'member-one', name: 'Ima James' }], hasMore: false },
+    });
+    goto('/app/overview');
+    render(<App />);
+    const count = await screen.findByRole('link', { name: /Church Members.*42/i });
+    expect(screen.getByRole('link', { name: /Operation R.E.D.*5/i })).toBeInTheDocument();
+    await userEvent.click(count);
+    expect(await screen.findByRole('link', { name: 'Ima James' })).toBeInTheDocument();
+    expect(screen.queryByRole('table')).toBeNull();
+  });
+
+  it('shows one member card to an authorized pastor and restores the search on return', async () => {
+    mockApi({
+      '/auth/me': session({ ...PASTOR, church_directory_access: true }),
+      '/church-members': { items: [{ id: 'member-one', name: 'Ima James' }], hasMore: false },
+      '/church-members/member-one': { id: 'member-one', first_name: 'Ima', last_name: 'James', phone: '08011112222', status: 'New Convert' },
+    });
+    goto('/app/members');
+    render(<App />);
+    const user = userEvent.setup();
+    await user.type(await screen.findByRole('textbox', { name: 'Search by name' }), 'Ima');
+    await user.click(await screen.findByRole('link', { name: 'Ima James' }));
+    expect(await screen.findByRole('article', { name: 'Ima James' })).toHaveTextContent('08011112222');
+    expect(screen.queryByRole('textbox', { name: 'Search by name' })).toBeNull();
+    await user.click(screen.getByRole('link', { name: 'Back to members' }));
+    expect(await screen.findByRole('textbox', { name: 'Search by name' })).toHaveValue('Ima');
+  });
+});
+
 describe('Operation R.E.D. onboarding', () => {
   beforeAll(async () => { await import('../components/red/RedCampaign'); });
 
@@ -285,7 +319,7 @@ describe('Operation R.E.D. onboarding', () => {
     expect(within(dialog).getByText('Target met')).toBeInTheDocument();
     expect(within(dialog).getByText('Target missed')).toBeInTheDocument();
     await userEvent.click(within(dialog).getByRole('button', { name: 'Confirm submission' }));
-    expect(await screen.findByText(/report submitted. 3 new membership records/i)).toBeInTheDocument();
+    expect(await screen.findByText(/report submitted. added 3 to church members/i)).toBeInTheDocument();
     expect(await screen.findByText('There is no reporting window open for your team.')).toBeInTheDocument();
     expect(calls.find(call => call.method === 'POST' && call.path === '/red/reports/2027-04-01').body).toEqual({ revision: 'same-version' });
   });

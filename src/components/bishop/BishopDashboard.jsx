@@ -12,7 +12,7 @@ import ProgrammeAttendance from '../pastor/ProgrammeAttendance';
 import { UserManagement } from '../admin/AdminDashboard';
 
 export default function BishopDashboard({ activeTab, setActiveTab }) {
-  const map = { overview: Overview, users: UserManagement, growth: Growth, staff: StaffMonitor, members: Members, kdf: KDFView, departments: DeptView, followups: FollowUps, programmes: ProgrammeAttendance, communication: Communication, reports: Reports, assignments: Assignments };
+  const map = { overview: Overview, users: UserManagement, growth: Growth, staff: StaffMonitor, kdf: KDFView, departments: DeptView, followups: FollowUps, programmes: ProgrammeAttendance, communication: Communication, reports: Reports, assignments: Assignments };
   const Comp = map[activeTab] || Overview;
   return <Comp setActiveTab={setActiveTab} />;
 }
@@ -55,7 +55,7 @@ function Birthdays({ onClose }) {
 }
 
 function Overview() {
-  const { data, reload } = useHomeData(loadHome);
+  const { data, reload } = useHomeData(loadHome, 30000);
   const [birthdaysOpen, setBirthdaysOpen] = useState(false);
   const brief = data?.brief;
   const latest = brief?.attendanceTrend?.at(-1);
@@ -70,6 +70,8 @@ function Overview() {
         note: latest?.service || (data ? 'No service recorded yet' : 'Loading attendance…'),
         action: { label: 'View history', to: '/app/reports', Icon: BarChart2 } }}
       stats={[
+        { label: 'Church Members', value: brief?.churchMembers, to: '/app/members' },
+        { label: 'Operation R.E.D.', value: brief?.redSouls, to: '/app/red', note: 'Souls recorded' },
         { label: 'New members this week', value: brief?.newMembers7d, to: '/app/growth' },
         { label: 'Follow-ups this week', value: brief?.followUps7d, to: '/app/followups' },
         { label: 'Pending approvals', value: brief?.pendingApprovals, to: '/app/approvals' },
@@ -188,35 +190,6 @@ function StaffMonitor() {
           );
         })}
       </div>
-    </div>
-  );
-}
-
-function Members() {
-  const [members, setMembers] = useState([]);
-  const [search, setSearch] = useState('');
-  useEffect(() => { getMembers().then(setMembers); }, []);
-  const filtered = members.filter(m => `${m.first_name} ${m.last_name} ${m.phone} ${m.address} ${m.kdf_area} ${m.department}`.toLowerCase().includes(search.toLowerCase()));
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-      <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-        <div style={{ flex: 1 }}><SearchInput value={search} onChange={setSearch} placeholder="Search name, phone, address, KDF area..." /></div>
-        <Badge label={`${filtered.length} members`} color={C.gold} />
-      </div>
-      <Panel>
-        <DataTable onRowClick={r => window.dispatchEvent(new CustomEvent('sicc:open-member', { detail: r.id }))} exportName="members"
-          columns={[
-            { key: 'name', label: 'Name', render: (_, r) => <strong style={{ color: C.textPrimary }}>{r.first_name} {r.last_name}</strong> },
-            { key: 'phone', label: 'Phone' },
-            { key: 'kdf_area', label: 'KDF area', render: v => <Badge label={v} color={C.purple} /> },
-            { key: 'department', label: 'Department', render: v => v || 'N/A' },
-            { key: 'status', label: 'Status', render: v => <StatusBadge status={v} /> },
-            { key: 'date_of_birth', label: 'DOB', render: v => v || 'N/A' },
-            { key: 'registered_by_name', label: 'Registered By' },
-          ]}
-          rows={filtered} emptyText="No members registered yet."
-        />
-      </Panel>
     </div>
   );
 }

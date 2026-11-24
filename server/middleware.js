@@ -5,7 +5,7 @@ const rateLimit = require('express-rate-limit');
 const { query } = require('./db');
 const { config } = require('./config');
 const { HttpError } = require('./http');
-const { can } = require('./permissions');
+const { can, canViewChurchDirectory } = require('./permissions');
 const { COOKIE_NAME, verifyToken } = require('./lib/sessions');
 const { alert } = require('./lib/alert');
 const jwt = require('jsonwebtoken');
@@ -139,9 +139,9 @@ function requirePerm(permission) {
 function publicProfile(profile) {
   const {
     password_hash, mfa_secret_enc, mfa_pending_secret_enc, mfa_recovery_hashes, mfa_last_step, failed_logins, locked_until,
-    phone_login: _phoneLogin, red_phone_login: _redPhoneLogin, welcome_tour_done_at: _tourDoneAt, ...safe
+    phone_login: _phoneLogin, red_phone_login: _redPhoneLogin, welcome_tour_done_at: _tourDoneAt, created_by_role: _creatorRole, ...safe
   } = profile;
-  return { ...safe, mfa_enabled: Boolean(profile.mfa_enabled), must_change_password: Boolean(profile.must_change_password), is_active: Boolean(profile.is_active) };
+  return { ...safe, church_directory_access: canViewChurchDirectory(profile), mfa_enabled: Boolean(profile.mfa_enabled), must_change_password: Boolean(profile.must_change_password), is_active: Boolean(profile.is_active) };
 }
 
 function errorHandler(error, req, res, _next) {

@@ -5,8 +5,9 @@ const { query, queryOn, int } = require('../db');
 const { config } = require('../config');
 const { asyncRoute, HttpError, sendData, str, oneOf, validDate, todayStr, normalizePhone, phoneLast10, pick } = require('../http');
 const { secured, requirePerm } = require('../middleware');
-const { can, PRIVILEGED } = require('../permissions');
+const { can, PRIVILEGED, canViewChurchDirectory } = require('../permissions');
 const { audit, auditThrottled, auditTransaction } = require('../lib/audit');
+const { lockDirectory, insertMember } = require('../lib/church-members');
 const lists = require('../data/lists.json');
 const { notify } = require('../lib/notify');
 
@@ -22,9 +23,15 @@ function scopeFor(profile) {
   throw new HttpError(403, 'You do not have permission to view member records.');
 }
 function shape(profile, row) {
-  if (can(profile.role, 'red.manage')) return row;
-  const { red_soul_id: _soul, red_team_id: _team, red_winner_id: _winner, ...record } = row;
+  const { register_import_key: _importKey, ...member } = row;
+  if (can(profile.role, 'red.manage')) return member;
+  const { red_soul_id: _soul, red_team_id: _team, red_winner_id: _winner, ...record } = member;
   return HIDE_NOTES.includes(profile.role) ? { ...record, notes: undefined } : record;
+}
+
+function requireChurchDirectory(req, _res, next) {
+  if (!canViewChurchDirectory(req.profile)) return next(new HttpError(403, 'You do not have permission to view the church directory.'));
+  next();
 }
 
 async function validateMember(body, { partial = false } = {}) {
@@ -32,6 +39,11 @@ async function validateMember(body, { partial = false } = {}) {
   const has = key => body[key] !== undefined;
   if (!partial || has('first_name')) out.first_name = str(body.first_name, { max: 120, required: true, field: 'First name' });
   if (!partial || has('last_name')) out.last_name = str(body.last_name, { max: 120, required: true, field: 'Last name' });
+  if (has('title')) out.title = str(body.title, { max: 80 });
+  if (has('email')) {
+    out.email = str(body.email, { max: 254 });
+    if (out.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/u.test(out.email)) throw new HttpError(400, 'Enter a valid email address.');
+  }
   if (has('phone')) {
     out.phone = str(body.phone, { max: 40 });
     if (out.phone) { const n = normalizePhone(out.phone).length; if (n < 7 || n > 15) throw new HttpError(400, 'Enter a valid phone number.'); }
@@ -76,6 +88,27 @@ async function loadMember(req, { allowDeleted = false } = {}) {
   }
   return member;
 }
+
+router.get('/church-members', ...secured, requireChurchDirectory, asyncRoute(async (req, res) => {
+  const search = String(req.query.q || '').trim().slice(0, 120);
+  const like = `%${search.replace(/[\\%_]/g, char => `\\${char}`)}%`;
+  const page = int(req.query.page, { min: 1, max: 100000, fallback: 1 });
+  const pageSize = 50;
+  const where = search ? "deleted_at IS NULL AND CONCAT_WS(' ', first_name, NULLIF(last_name, '')) LIKE ?" : 'deleted_at IS NULL';
+  const values = search ? [like] : [];
+  const rows = await query(`SELECT id, CONCAT_WS(' ', first_name, NULLIF(last_name, '')) AS name FROM members
+    WHERE ${where} ORDER BY first_name, last_name, id LIMIT ${pageSize + 1} OFFSET ${(page - 1) * pageSize}`, values);
+  await auditThrottled(req, `church-members:${req.profile.id}`, 600000, { action: 'members.list', entity_type: 'member', detail: 'Opened church directory' });
+  sendData(res, { items: rows.slice(0, pageSize), hasMore: rows.length > pageSize });
+}));
+
+router.get('/church-members/:id', ...secured, requireChurchDirectory, asyncRoute(async (req, res) => {
+  const [member] = await query(`SELECT id, title, first_name, last_name, phone, email, date_of_birth, status, spiritual_status,
+    address, department, affinity_group, kdf_area, kdf_coordinator, notes FROM members WHERE id = ? AND deleted_at IS NULL`, [req.params.id]);
+  if (!member) throw new HttpError(404, 'Member not found.');
+  await auditThrottled(req, `member-view:${req.profile.id}:${member.id}`, 600000, { action: 'member.view', entity_type: 'member', entity_id: member.id });
+  sendData(res, member);
+}));
 
 router.get('/members', ...secured, requirePerm('members.read'), asyncRoute(async (req, res) => {
   const where = ['deleted_at IS NULL'];
@@ -146,16 +179,16 @@ router.post('/members', ...secured, requirePerm('members.write'), asyncRoute(asy
   if (config.consentRequired && body.consent_given !== true) {
     throw new HttpError(400, 'Confirm that this person agreed to their details being stored (consent) before registering them.');
   }
-  if (data.phone && !body.force) {
-    const dup = await query("SELECT id, first_name, last_name FROM members WHERE phone_last10 = ? AND LOWER(first_name) = LOWER(?) AND LOWER(last_name) = LOWER(?) AND deleted_at IS NULL LIMIT 1", [data.phone_last10, data.first_name, data.last_name]);
-    if (dup[0]) throw new HttpError(409, `${dup[0].first_name} ${dup[0].last_name} is already registered with this phone number.`, { code: 'duplicate', duplicate_of: dup[0].id });
-  }
-  const id = crypto.randomUUID();
-  const record = { id, ...data, status: data.status || 'New Convert', spiritual_status: data.spiritual_status || 'Salvation', registered_by: req.profile.id, registered_by_name: req.profile.name, consent_given: body.consent_given === true ? 1 : 0, consent_at: body.consent_given === true ? new Date().toISOString().slice(0, 19).replace('T', ' ') : null };
-  const fields = Object.keys(record);
-  await query(`INSERT INTO members (${fields.join(', ')}) VALUES (${fields.map(() => '?').join(', ')})`, fields.map(f => record[f]));
-  const created = (await query('SELECT * FROM members WHERE id = ?', [id]))[0];
-  await audit(req, { action: 'member.create', entity_type: 'member', entity_id: id, detail: `${created.first_name} ${created.last_name}`, after: created });
+  const created = await auditTransaction(req, async conn => {
+    await lockDirectory(conn);
+    if (data.phone && !body.force) {
+      const [dup] = await queryOn(conn, "SELECT id, first_name, last_name FROM members WHERE phone_last10 = ? AND LOWER(first_name) = LOWER(?) AND LOWER(last_name) = LOWER(?) AND deleted_at IS NULL LIMIT 1", [data.phone_last10, data.first_name, data.last_name]);
+      if (dup) throw new HttpError(409, `${dup.first_name} ${dup.last_name} is already registered with this phone number.`, { code: 'duplicate', duplicate_of: dup.id });
+    }
+    const record = await insertMember(conn, { ...data, status: data.status || 'New Convert', spiritual_status: data.spiritual_status || 'Salvation', registered_by: req.profile.id, registered_by_name: req.profile.name, consent_given: body.consent_given === true ? 1 : 0, consent_at: body.consent_given === true ? new Date().toISOString().slice(0, 19).replace('T', ' ') : null });
+    const [member] = await queryOn(conn, 'SELECT * FROM members WHERE id = ?', [record.id]);
+    return { data: member, event: { action: 'member.create', entity_type: 'member', entity_id: record.id, detail: `${member.first_name} ${member.last_name}`, after: member } };
+  });
   sendData(res, shape(req.profile, created), 201);
 }));
 
@@ -190,8 +223,8 @@ router.post('/members/:id/anonymize', ...secured, requirePerm('members.anonymize
   const member = await loadMember(req, { allowDeleted: true });
   const reason = str(req.body?.reason, { max: 300, required: true, field: 'A reason' });
   await auditTransaction(req, async conn => {
-    if (member.red_soul_id) await queryOn(conn, "UPDATE red_souls SET full_name = 'Erased Member', address = 'Erased', phone = NULL, email = NULL WHERE id = ?", [member.red_soul_id]);
-    await queryOn(conn, `UPDATE members SET first_name = 'Erased', last_name = 'Member', phone = NULL, phone_last10 = NULL, email = NULL, address = NULL, date_of_birth = NULL, notes = NULL, kdf_coordinator = NULL,
+    await queryOn(conn, "UPDATE red_souls SET full_name = 'Erased Member', address = 'Erased', phone = NULL, email = NULL WHERE church_member_id = ?", [member.id]);
+    await queryOn(conn, `UPDATE members SET first_name = 'Erased', last_name = 'Member', title = NULL, phone = NULL, phone_last10 = NULL, email = NULL, address = NULL, date_of_birth = NULL, notes = NULL, kdf_coordinator = NULL,
       deleted_at = COALESCE(deleted_at, CURRENT_TIMESTAMP), deleted_by = ?, delete_reason = ? WHERE id = ?`, [req.profile.id, `Erased: ${reason}`, member.id]);
     await queryOn(conn, "UPDATE follow_ups SET member_name = 'Erased Member', notes = NULL, outcome = NULL WHERE member_id = ?", [member.id]);
     return { event: { action: 'member.anonymize', entity_type: 'member', entity_id: member.id, detail: reason } };

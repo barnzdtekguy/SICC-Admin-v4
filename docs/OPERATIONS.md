@@ -39,3 +39,9 @@ Run the read-only deployment check against the running site:
 
 To exercise sign-in, account creation, member registration, and messaging, start a test server with a fresh, disposable database and its own bootstrap account:
 `BASE_URL=http://localhost:3001 BOOT_EMAIL=... BOOT_PASSWORD=... npm run test:smoke`
+
+## Church register import
+
+Run `npm run import-members -- "<private path to register.xlsx>"` with the target database configuration and Python 3 available. Set `SICC_IMPORT_PYTHON` if the Python executable is outside `PATH`. The dry run makes read-only queries and outputs counts and sheet row references. Review rows with conflicting identities or ambiguous dates in the original workbook. Keep the workbook outside the repository.
+
+After reviewing the dry run and deploying the church directory migration, pass `--apply` to write only the ready rows. The import checks the directory again inside the write transaction. Rerunning the same register reports previously imported entries as existing. Imported entries use `Active Member`, and birthdays with only a day and month appear in the member's notes.

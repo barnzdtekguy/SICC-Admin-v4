@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { apiRequest } from '../../lib/api';
 import { flushQueue, onRedQueueChange, removeRedQueueItem } from '../../lib/offlineQueue';
-import { Alert, Btn, C, Checkbox, ConfirmDialog, Input, Modal, Panel, Select, Textarea } from '../shared/UI';
+import { Alert, Badge, Btn, C, Checkbox, ConfirmDialog, Input, Modal, Panel, Select, Textarea } from '../shared/UI';
 import { RedLoading, formatRedTimestamp } from './RedShared';
 
 const labels = {
@@ -190,6 +190,7 @@ export function SoulList({ items, open, profileId, onChanged, showWinner = false
             return <li key={soul.id}>
               <div><strong>{soul.full_name}</strong><p>{soul.invalidated_at ? 'Flagged invalid' : redStage(soul.stage)}{showWinner && ` · ${soul.winner_name}`}</p></div>
               <div className="red-actions">
+                {soul.church_member_review && <Badge color={C.warning} label="Membership match needs review" />}
                 {next && !soul.invalidated_at && soul.winner_id === profileId && <Btn size="sm" disabled={Boolean(pending)} loading={pending === soul.id}
                   onClick={() => advance(soul)} ariaLabel={`Move ${soul.full_name} to ${redStage(next)}`}>Move to {redStage(next)}</Btn>}
                 <Btn size="sm" variant="outline" onClick={() => open(soul.id)} ariaLabel={`View ${soul.full_name}`}>View</Btn>

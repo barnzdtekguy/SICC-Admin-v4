@@ -40,7 +40,7 @@ export default function RedReports({ onSubmitted, liveRevision }) {
     try {
       const result = await apiRequest(`/red/reports/${review.window.month}`, { method: 'POST', body: { revision: review.revision } });
       setReview(null);
-      setNotice(`Report submitted. ${result.created_members} new membership records and ${result.linked_members} existing member links.`);
+      setNotice(`Report submitted. Added ${result.created_members} to Church Members, linked ${result.linked_members}, and flagged ${result.review_members ?? 0} for review.`);
       reload();
       onSubmitted?.();
     } catch (problem) {
@@ -78,7 +78,8 @@ export default function RedReports({ onSubmitted, liveRevision }) {
                 <h3>Submitted reports</h3>
                 <ul className="red-list">
                   {reports.submitted.map(report => (
-                    <li key={report.id}><div><strong>{redMonth(report.month)}</strong><p>Submitted {redDate(report.submitted_on)}</p></div>
+                    <li key={report.id}><div><strong>{redMonth(report.month)}</strong><p>Submitted {redDate(report.submitted_on)}</p>
+                      {report.review_members > 0 && <p>{report.review_members} flagged for membership review</p>}</div>
                       <strong>{report.summary.total} souls</strong></li>
                   ))}
                 </ul>
@@ -90,7 +91,7 @@ export default function RedReports({ onSubmitted, liveRevision }) {
       {review && (
         <Modal title={review.window.final ? 'Review final report' : `Review ${redMonth(review.window.month)} report`} onClose={() => { if (!busy) setReview(null); }}>
           <div className="red-stack">
-            <p>Submitting is permanent and adds the valid soul records to church membership.
+            <p>Submitting is permanent. Souls are added or linked to Church Members. Uncertain matches are flagged for review.
               {!review.window.final && ' New soul entries will count toward the next month.'}</p>
             <ul className="red-list">
               {review.summary.members.map(member => (

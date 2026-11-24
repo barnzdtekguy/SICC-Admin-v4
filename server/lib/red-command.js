@@ -25,7 +25,7 @@ function trackingWindows(settings, today, requested) {
 function reportState(team, window, report, today) {
   if (report) {
     const late = report.submitted_on > window.closes;
-    return { status: late ? 'late' : 'submitted', label: late ? 'Submitted late' : 'Submitted', total: report.summary.total, submitted_on: report.submitted_on };
+    return { status: late ? 'late' : 'submitted', label: late ? 'Submitted late' : 'Submitted', total: report.summary.total, submitted_on: report.submitted_on, review_members: report.review_members };
   }
   if (!teamEligible(team, window) || (team.deactivated_at && utcToLagosDate(team.deactivated_at) < window.opens)) return { status: 'not_due', label: 'Not due' };
   if (today > window.closes) return { status: 'missing', label: 'Missing', days_late: daysBetween(window.closes, today) };
@@ -80,8 +80,8 @@ async function getTeamDetail(req) {
     query(`SELECT p.id, p.name, p.role, m.joined_at, COUNT(s.id) AS total FROM red_team_members m JOIN profiles p ON p.id = m.profile_id
       LEFT JOIN red_souls s ON s.winner_id = p.id AND s.report_month = ? AND s.invalidated_at IS NULL
       WHERE m.team_id = ? GROUP BY p.id, p.name, p.role, m.joined_at ORDER BY m.joined_at, p.name`, [month, team.id]),
-    query(`SELECT ${soulFields}, p.name AS winner_name FROM red_souls s JOIN profiles p ON p.id = s.winner_id
-      WHERE s.team_id = ? ORDER BY s.recorded_at DESC, s.id DESC LIMIT ${pageSize + 1} OFFSET ${offset}`, [team.id]),
+    query(`SELECT ${soulFields}, s.church_member_review, p.name AS winner_name FROM red_souls s JOIN profiles p ON p.id = s.winner_id
+      WHERE s.team_id = ? ORDER BY s.church_member_review IS NULL, s.recorded_at DESC, s.id DESC LIMIT ${pageSize + 1} OFFSET ${offset}`, [team.id]),
     query('SELECT * FROM red_reports WHERE team_id = ? ORDER BY report_month DESC', [team.id]),
   ]);
   const [tracked] = applyTracking([team], reports, windows, today);

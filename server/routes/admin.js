@@ -196,7 +196,7 @@ router.get('/reports/overview', ...secured, requirePerm('reports.org'), asyncRou
     query('SELECT service, COUNT(*) AS sessions, SUM(count) AS total, ROUND(AVG(count)) AS average FROM attendance WHERE date BETWEEN ? AND ? AND dept_key = \'\' GROUP BY service ORDER BY total DESC', [from, to]),
     query('SELECT dept_name AS department, COUNT(*) AS sessions, SUM(COALESCE(dept_count, count)) AS total FROM attendance WHERE date BETWEEN ? AND ? AND dept_key <> \'\' GROUP BY dept_name ORDER BY total DESC', [from, to]),
     query('SELECT YEARWEEK(date, 3) AS week, MIN(date) AS week_start, SUM(count) AS total FROM attendance WHERE date BETWEEN ? AND ? AND dept_key = \'\' GROUP BY YEARWEEK(date, 3) ORDER BY week', [from, to]),
-    query('SELECT status, COUNT(*) AS n FROM members WHERE deleted_at IS NULL AND date_registered BETWEEN ? AND ? GROUP BY status', [from, to]),
+    query('SELECT status, COUNT(*) AS n FROM members WHERE deleted_at IS NULL AND register_import_key IS NULL AND date_registered BETWEEN ? AND ? GROUP BY status', [from, to]),
     query('SELECT status, COUNT(*) AS n FROM follow_ups WHERE deleted_at IS NULL AND created_at >= ? AND created_at < ? GROUP BY status', [`${from} 00:00:00`, `${addDays(to, 1)} 00:00:00`]),
   ]);
   sendData(res, { from, to, byService, byDept, weekly, newMembers: members, followUps });
@@ -248,17 +248,19 @@ router.get('/brief', ...secured, requirePerm('brief.read'), asyncRoute(async (re
   const md = today.slice(5);
   const overdueSql = "status = 'In Progress' AND deleted_at IS NULL AND created_at < DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 7 DAY)";
   if (PRIVILEGED.includes(p.role)) {
-    const [trend, newNow, newPrev, overdue, pending, birthdays, unverified, followups] = await Promise.all([
+    const [trend, newNow, newPrev, overdue, pending, birthdays, unverified, followups, churchMembers, redSouls] = await Promise.all([
       query("SELECT date, service, count FROM attendance WHERE dept_key = '' ORDER BY date DESC, created_at DESC LIMIT 8"),
-      query('SELECT COUNT(*) AS n FROM members WHERE deleted_at IS NULL AND created_at >= DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 7 DAY)'),
-      query('SELECT COUNT(*) AS n FROM members WHERE deleted_at IS NULL AND created_at >= DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 14 DAY) AND created_at < DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 7 DAY)'),
+      query('SELECT COUNT(*) AS n FROM members WHERE deleted_at IS NULL AND register_import_key IS NULL AND created_at >= DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 7 DAY)'),
+      query('SELECT COUNT(*) AS n FROM members WHERE deleted_at IS NULL AND register_import_key IS NULL AND created_at >= DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 14 DAY) AND created_at < DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 7 DAY)'),
       query(`SELECT COUNT(*) AS n FROM follow_ups WHERE ${overdueSql}`),
       query("SELECT COUNT(*) AS n FROM correction_requests WHERE status = 'pending'"),
       query("SELECT COUNT(*) AS n FROM members WHERE deleted_at IS NULL AND date_of_birth IS NOT NULL AND DATE_FORMAT(date_of_birth, '%m-%d') = ?", [md]),
       query("SELECT COUNT(*) AS n FROM attendance WHERE status = 'recorded' AND created_at < DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 1 DAY)"),
       query("SELECT COUNT(*) AS n FROM follow_ups WHERE deleted_at IS NULL AND created_at >= DATE_SUB(CURRENT_TIMESTAMP, INTERVAL 7 DAY)"),
+      query('SELECT COUNT(*) AS n FROM members WHERE deleted_at IS NULL'),
+      query('SELECT COUNT(*) AS n FROM red_souls WHERE invalidated_at IS NULL'),
     ]);
-    Object.assign(out, { attendanceTrend: trend.reverse(), newMembers7d: newNow[0].n, newMembersPrev7d: newPrev[0].n, overdueFollowUps: overdue[0].n, pendingApprovals: pending[0].n, birthdaysToday: birthdays[0].n, unverifiedAttendance: unverified[0].n, followUps7d: followups[0].n });
+    Object.assign(out, { attendanceTrend: trend.reverse(), newMembers7d: newNow[0].n, newMembersPrev7d: newPrev[0].n, overdueFollowUps: overdue[0].n, pendingApprovals: pending[0].n, birthdaysToday: birthdays[0].n, unverifiedAttendance: unverified[0].n, followUps7d: followups[0].n, churchMembers: churchMembers[0].n, redSouls: redSouls[0].n });
   } else if (p.role === 'pastor') {
     const [mine, overdue, quiet, birthdays] = await Promise.all([
       query('SELECT COUNT(*) AS n FROM members WHERE deleted_at IS NULL AND registered_by = ?', [p.id]),

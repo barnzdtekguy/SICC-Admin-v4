@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import App from '../App';
-import { NAV } from '../components/shared/Layout';
+import { navigationFor } from '../components/shared/Layout';
 import { PASSWORD_HINT } from '../../shared/password-policy.mjs';
 
 const roles = [
@@ -10,7 +10,7 @@ const roles = [
   ['pastor', 'Register member', 'User accounts'],
   ['department_leader', 'Department members', 'Programme attendance'],
   ['kdf_coordinator', 'Area members', 'User management'],
-  ['red_leader', 'Join link', 'All members'],
+  ['red_leader', 'Join link', 'Church Members'],
   ['red_member', 'Add soul', 'Join link'],
 ];
 
@@ -62,7 +62,8 @@ describe('the welcome tour', () => {
     let isLast = false;
     const titles = [];
     const cues = [];
-    for (let i = 0; i < NAV[role].length + 4; i += 1) {
+    const allowedPages = navigationFor({ role });
+    for (let i = 0; i < allowedPages.length + 4; i += 1) {
       titles.push(guide.getByRole('heading').textContent);
       cues.push(guide.getByRole('heading').nextElementSibling.textContent);
       isLast = Boolean(guide.queryByRole('button', { name: 'Finish' }));
@@ -72,7 +73,7 @@ describe('the welcome tour', () => {
     expect(isLast).toBe(true);
     expect(titles).toContain(available);
     expect(titles).not.toContain(forbidden);
-    expect(titles).toEqual(expect.arrayContaining(NAV[role].filter(page => page.key !== 'overview').map(page => page.label)));
+    expect(titles).toEqual(expect.arrayContaining(allowedPages.filter(page => page.key !== 'overview').map(page => page.label)));
     if (mobile) {
       expect(cues.some(cue => cue.includes('bottom menu'))).toBe(true);
       expect(cues.some(cue => cue.includes('Open More'))).toBe(true);
@@ -87,7 +88,7 @@ describe('the welcome tour', () => {
     const first = render(<App />);
     const guide = within(await screen.findByRole('dialog', { name: 'Welcome tour' }));
     if (action === 'Finish') {
-      for (let i = 0; i < NAV.red_member.length + 2; i += 1) fireEvent.click(guide.getByRole('button', { name: 'Next' }));
+      for (let i = 0; i < navigationFor({ role: 'red_member' }).length + 2; i += 1) fireEvent.click(guide.getByRole('button', { name: 'Next' }));
     }
     fireEvent.click(guide.getByRole('button', { name: action }));
     await waitFor(() => expect(state.pending).toBe(false));

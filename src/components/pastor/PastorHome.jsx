@@ -57,7 +57,8 @@ export default function PastorHome() {
       chart={{ title: 'Members by KDF area', bars, unit: 'members', to: '/app/reports', linkLabel: 'My reports',
         empty: members ? 'Area totals appear after you register a member.' : 'Area totals are unavailable.' }}
       attention={{ rows: attentionRows, to: followUpPage, empty: brief ? undefined : 'Follow-up reminders are unavailable.' }}
-      shortcuts={shortcuts} loading={!data} error={data?.error} onRetry={reload}>
+      shortcuts={profile.church_directory_access ? [{ to: '/app/members', label: 'Church Members', Icon: Users }, ...shortcuts.slice(1)] : shortcuts}
+      loading={!data} error={data?.error} onRetry={reload}>
       {showBirthdays && (
         <Modal title="Birthdays today" onClose={() => setShowBirthdays(false)}>
           <ul className="role-home-birthdays">

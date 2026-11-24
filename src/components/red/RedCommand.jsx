@@ -14,7 +14,7 @@ const statuses = [
 
 function ReportStatus({ report }) {
   const color = report.status === 'submitted' ? C.success : report.status === 'missing' ? C.danger : report.status === 'late' ? C.warning : C.textSecondary;
-  return <Badge color={color} label={report.label} />;
+  return <><Badge color={color} label={report.label} />{report.review_members > 0 && <p>{report.review_members} flagged for membership review</p>}</>;
 }
 
 const columns = [

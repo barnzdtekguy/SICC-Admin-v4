@@ -283,3 +283,80 @@ test('a leader receives a team refresh after a member records a soul', async () 
     await new Promise(resolve => server.close(resolve));
   }
 });
+
+test('a monthly report updates the church directory once and keeps campaign totals stable', async () => {
+  const today = todayInLagos();
+  const firstOfMonth = today === monthOf(today);
+  const reportDate = firstOfMonth ? addDays(today, -1) : today;
+  const month = monthOf(reportDate);
+  const end = addDays(today, 120);
+  dataOf(await h.api(admin, 'patch', '/red/settings', { campaign_start: month, campaign_end: end, final_report_opens: end, report_open_day: 2, report_close_day: 1 }));
+  const invite = dataOf(await h.api(admin, 'post', '/red/leader-invites', { capacity: 1 }), 201);
+  const { agent: reporter } = await onboard(invite, 'leader', 'Directory Report Leader');
+  const reportingTeam = dataOf(await h.api(reporter, 'get', '/red/team'));
+  const email = `pastor.${h.uniq()}@test.local`;
+  const createdPastor = dataOf(await h.api(admin, 'post', '/profiles', { role: 'pastor', name: 'Directory Pastor', email, password: h.PASSWORD }), 201);
+  assert.equal(createdPastor.church_directory_access, true);
+  const pastor = await h.loginAgent({ email, password: h.PASSWORD });
+  dataOf(await h.api(pastor, 'post', '/auth/password', { current_password: h.PASSWORD, new_password: 'Change!Pebble-8112' }));
+  const otherPastor = await h.loginAgent(await h.makeUser('pastor'));
+
+  const tag = h.uniq();
+  const name = `Directory New ${tag}`;
+  const activeEmail = `existing.${tag}@test.local`;
+  const active = dataOf(await h.api(admin, 'post', '/members', { first_name: 'Directory', last_name: `Established ${tag}`, email: activeEmail, status: 'Active Member', consent_given: true }), 201);
+  dataOf(await h.api(admin, 'post', '/members', { first_name: 'Directory', last_name: `Ambiguous ${tag}`, consent_given: true }), 201);
+  const added = createForm({ full_name: name, phone: phone() });
+  const linked = createForm({ full_name: `Directory Established ${tag}`, email: activeEmail });
+  const ambiguous = createForm({ full_name: `Directory Ambiguous ${tag}`, phone: phone() });
+  const briefFor = async agent => {
+    const { churchMembers, redSouls } = dataOf(await h.api(agent, 'get', '/brief'));
+    return { churchMembers, redSouls };
+  };
+  const beforeRecording = await briefFor(admin);
+  const getStages = async () => dataOf(await h.api(bishop, 'get', '/red/admin/command')).stages;
+  const beforeStages = await getStages();
+  for (const form of [added, linked, ambiguous]) dataOf(await h.api(reporter, 'post', '/red/souls', form), 201);
+  if (firstOfMonth) {
+    await query('UPDATE red_teams SET created_at = ? WHERE id = ?', [`${reportDate} 12:00:00`, reportingTeam.id]);
+    await query('UPDATE red_team_members SET joined_at = ? WHERE team_id = ?', [`${reportDate} 12:00:00`, reportingTeam.id]);
+    await query('UPDATE red_souls SET report_month = ?, recorded_on = ? WHERE team_id = ?', [month, reportDate, reportingTeam.id]);
+  }
+  for (const stage of ['under_training', 'completed_training', 'equipped', 'deployed']) {
+    dataOf(await h.api(reporter, 'post', `/red/souls/${added.id}/stage`, { stage }));
+    const total = stages => stages.find(row => row.stage === stage).total;
+    assert.equal(total(await getStages()), total(beforeStages) + 1);
+  }
+  const afterRecording = { churchMembers: beforeRecording.churchMembers, redSouls: beforeRecording.redSouls + 3 };
+  assert.deepEqual(await briefFor(admin), afterRecording);
+  assert.deepEqual(await briefFor(bishop), afterRecording);
+  const path = `/red/reports/${month}`;
+  const preview = dataOf(await h.api(reporter, 'get', path));
+  assert.equal(preview.window.final, false);
+  const payload = { revision: preview.revision };
+  const { id, created_members, linked_members, review_members } = dataOf(await h.api(reporter, 'post', path, payload), 201);
+  assert.deepEqual([created_members, linked_members, review_members], [1, 1, 1]);
+  const afterSubmission = { churchMembers: afterRecording.churchMembers + 1, redSouls: afterRecording.redSouls };
+  assert.deepEqual(await briefFor(bishop), afterSubmission);
+  assert.deepEqual(await briefFor(admin), afterSubmission);
+
+  const [listItem] = dataOf(await h.api(pastor, 'get', `/church-members?q=${encodeURIComponent(name)}`)).items;
+  assert.deepEqual(listItem, { id: listItem.id, name });
+  const detailPath = `/church-members/${listItem.id}`;
+  const details = dataOf(await h.api(pastor, 'get', detailPath));
+  assert.equal(details.status, 'New Convert');
+  assert.equal(details.phone, `+234${added.phone.slice(1)}`);
+  assert.equal((await h.api(pastor, 'patch', `/members/${listItem.id}`, { notes: 'Attempted edit' })).status, 404);
+  assert.equal((await h.api(otherPastor, 'get', detailPath)).status, 403);
+  assert.equal((await h.api(reporter, 'get', '/church-members')).status, 403);
+  const teamDetail = dataOf(await h.api(bishop, 'get', `/red/admin/teams/${reportingTeam.id}`));
+  assert.equal(teamDetail.souls.find(soul => soul.id === ambiguous.id).church_member_review, 'unconfirmed_match');
+  const [match] = await query('SELECT church_member_id FROM red_souls WHERE id = ?', [linked.id]);
+  assert.equal(match.church_member_id, active.id);
+
+  const replay = dataOf(await h.api(reporter, 'post', path, payload));
+  assert.equal(replay.id, id);
+  assert.equal(replay.replayed, true);
+  assert.deepEqual(await briefFor(bishop), afterSubmission);
+  assert.deepEqual(await briefFor(admin), afterSubmission);
+});

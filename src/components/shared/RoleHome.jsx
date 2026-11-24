@@ -28,19 +28,28 @@ export function RoleHomeHero({ children, action, labelledBy }) {
   );
 }
 
-export function useHomeData(load) {
+export function useHomeData(load, refreshMs) {
   const [data, setData] = useState(null);
   const [revision, setRevision] = useState(0);
   useEffect(() => {
     let active = true;
-    const queries = Object.entries(load());
-    Promise.allSettled(queries.map(([, request]) => request)).then(results => {
+    let pending = false;
+    const refresh = async () => {
+      if (pending) return;
+      pending = true;
+      const queries = Object.entries(load());
+      const results = await Promise.allSettled(queries.map(([, request]) => request));
+      pending = false;
       if (!active) return;
       const values = results.map((result, index) => [queries[index][0], result.value]);
       setData({ ...Object.fromEntries(values), error: results.some(result => result.status === 'rejected') });
-    });
-    return () => { active = false; };
-  }, [load, revision]);
+    };
+    refresh();
+    const refreshWhenVisible = () => { if (navigator.onLine && document.visibilityState === 'visible') refresh(); };
+    const timer = refreshMs && setInterval(refreshWhenVisible, refreshMs);
+    if (refreshMs) window.addEventListener('focus', refreshWhenVisible);
+    return () => { active = false; clearInterval(timer); window.removeEventListener('focus', refreshWhenVisible); };
+  }, [load, refreshMs, revision]);
   const reload = () => { setData(null); setRevision(value => value + 1); };
   return { data, reload };
 }
@@ -122,7 +131,7 @@ export default function RoleHome({ hero, stats, chart, attention, shortcuts, loa
         </Action>
       }>
         <h2 id={`${id}-hero`}>{hero.label}</h2>
-        <p className="display role-home-hero-number">{metric(hero.value)}</p>
+        <p className="display role-home-hero-number">{hero.to ? <Link to={hero.to} aria-label={`${hero.label}, ${metric(hero.value)}`}>{metric(hero.value)}</Link> : metric(hero.value)}</p>
         {hero.note && <p className="role-home-hero-note">{hero.note}</p>}
       </RoleHomeHero>
       {error && (
@@ -133,8 +142,8 @@ export default function RoleHome({ hero, stats, chart, attention, shortcuts, loa
       )}
       <section className="role-home-summary" aria-labelledby={`${id}-summary`}>
         <h2 id={`${id}-summary`}>Ministry summary</h2>
-        <div className="role-home-stats">
-          {stats.slice(0, 4).map(({ label, value, suffix, note, to, onClick }) => (
+        <div className="role-home-stats" data-extended={stats.length > 4 || undefined}>
+          {stats.map(({ label, value, suffix, note, to, onClick }) => (
             <Action key={label} className="role-home-stat" to={to} onClick={onClick}>
               <span>{label}</span>
               <strong className="display">{metric(value, suffix)}</strong>

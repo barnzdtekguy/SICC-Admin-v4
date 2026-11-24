@@ -311,6 +311,27 @@ const migrations = [
   },
   { id: '014_red_reminders', up: async () => runSqlFile('red-reminders.sql') },
   { id: '015_welcome_tour', up: async () => addColumn('profiles', 'welcome_tour_done_at', 'DATETIME NULL') },
+  {
+    id: '016_church_directory',
+    up: async () => {
+      await addColumn('members', 'title', 'VARCHAR(80) NULL');
+      await addColumn('members', 'register_import_key', 'CHAR(64) NULL');
+      await addIndex('members', 'members_register_import_unique', 'register_import_key', { unique: true });
+      await addColumn('profiles', 'created_by_role', 'VARCHAR(40) NULL');
+      await query(`UPDATE profiles p LEFT JOIN profiles creator ON creator.id = p.created_by
+        SET p.created_by_role = COALESCE((SELECT a.role FROM activity_logs a
+          WHERE a.entity_type = 'profile' AND a.action = 'user.create' AND a.entity_id = p.id
+          AND a.user_id = p.created_by ORDER BY a.seq LIMIT 1), creator.role)
+        WHERE p.created_by_role IS NULL AND p.created_by IS NOT NULL`);
+      await addColumn('red_reports', 'review_members', 'INT UNSIGNED NOT NULL DEFAULT 0');
+      await addColumn('red_souls', 'church_member_id', 'CHAR(36) NULL');
+      await addColumn('red_souls', 'church_member_review', 'VARCHAR(40) NULL');
+      await addIndex('red_souls', 'red_souls_church_member_idx', 'church_member_id');
+      await query(`UPDATE red_souls s JOIN members m ON m.red_soul_id = s.id
+        SET s.church_member_id = m.id WHERE s.church_member_id IS NULL`);
+      await query("INSERT IGNORE INTO app_settings (setting_key) VALUES ('church_directory_lock')");
+    },
+  },
 ];
 
 // Belt and braces: block edits/deletes of audit rows at the database level where the host allows triggers.
