@@ -163,6 +163,25 @@
 .floating-card-account { padding: 8px 16px; border-bottom: 1px solid var(--line); overflow-wrap: anywhere; }
 .floating-card-account small { display: block; color: var(--glass-muted); font-size: 12px; }
 
+.app-install-copy {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: 12px;
+  padding: 16px;
+  font-size: 14px;
+  line-height: 1.5;
+}
+.app-install-copy img { border-radius: 12px; }
+.app-install-copy p + p { margin-top: 8px; color: var(--glass-muted); }
+.app-install-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 0 16px 16px;
+}
+
 @media (max-width: 860px) {
   body:has(.floating-card-layer) .app-main { overflow: hidden !important; }
   .floating-card-layer, .floating-card-layer[data-upwards='true'] { inset: 0; width: auto; }

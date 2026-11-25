@@ -1,14 +1,15 @@
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { useTheme } from '../../hooks/useTheme';
 import { ROLES, ROLE_LABELS, isRedRole } from '../../data/constants';
 import { onQueueChange, flushQueue } from '../../lib/offlineQueue';
-import { onInstallAvailable, promptInstall } from '../../lib/pwa';
+import { getInstallStatus, subscribeToInstallStatus } from '../../lib/pwa';
 import NotificationBell from './NotificationBell';
 import CommandPalette from './CommandPalette';
 import MemberDrawer from './MemberDrawer';
 import FloatingCard from './FloatingCard';
+import InstallApp from './InstallApp';
 import WelcomeTour from './WelcomeTour';
 import { welcomeTourSteps } from './welcomeTourSteps';
 import '../../styles/app-shell.css';
@@ -118,13 +119,20 @@ export default function Layout({ activeTab, setActiveTab, mobile, children }) {
   const { profile, logout, showWelcomeTour, dismissWelcomeTour } = useAuth();
   const { effective, setMode } = useTheme();
   const navigate = useNavigate();
+  const installKey = `sicc:install-dismissed:${profile.id}`;
   const [collapsed, setCollapsed] = useState(false);
-  const [open, setOpen] = useState(null);
+  const [open, setOpen] = useState(() => {
+    if (getInstallStatus() === 'installed') return null;
+    try { return sessionStorage.getItem(installKey) ? null : 'install'; }
+    catch { return 'install'; }
+  });
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [memberId, setMemberId] = useState(null);
   const [online, setOnline] = useState(() => navigator.onLine);
   const [pending, setPending] = useState(0);
-  const [canInstall, setCanInstall] = useState(false);
+  const installStatus = useSyncExternalStore(subscribeToInstallStatus, getInstallStatus);
+  const showInstall = open === 'install' && installStatus !== 'installed';
+  const accountOpen = open === 'account' || showInstall;
   const main = useRef(null);
   const shellRef = useRef(null);
   const accountTrigger = useRef(null);
@@ -143,8 +151,17 @@ export default function Layout({ activeTab, setActiveTab, mobile, children }) {
   const themeLabel = dark ? 'Switch to light theme' : 'Switch to dark theme';
   const ThemeIcon = dark ? Sun : Moon;
 
-  const close = useCallback(() => setOpen(null), []);
-  const toggle = name => setOpen(current => current === name ? null : name);
+  const dismissInstall = useCallback(() => {
+    try { sessionStorage.setItem(installKey, 'yes'); } catch { /* browser storage is unavailable */ }
+  }, [installKey]);
+  const close = useCallback(() => {
+    if (open === 'install') dismissInstall();
+    setOpen(null);
+  }, [open, dismissInstall]);
+  const toggle = name => {
+    if (open === 'install') dismissInstall();
+    setOpen(open === name ? null : name);
+  };
   const go = useCallback(key => { close(); setActiveTab(key); }, [close, setActiveTab]);
   const showSearch = () => { close(); setPaletteOpen(true); };
 
@@ -168,7 +185,6 @@ export default function Layout({ activeTab, setActiveTab, mobile, children }) {
     window.addEventListener('sicc:open-member', showMember);
     return () => window.removeEventListener('sicc:open-member', showMember);
   }, [redAccount]);
-  useEffect(() => onInstallAvailable(setCanInstall), []);
   useEffect(() => {
     const key = e => {
       if (!(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== 'k') return;
@@ -215,18 +231,22 @@ export default function Layout({ activeTab, setActiveTab, mobile, children }) {
           </button>
           <NotificationBell onNavigate={link => { close(); navigate(link); }} />
           <button ref={accountTrigger} type="button" className="app-header-button app-account-btn" onClick={() => toggle('account')}
-            aria-haspopup="dialog" aria-expanded={open === 'account'} aria-controls={open === 'account' ? accountId : undefined} aria-label="Account menu" data-tour-target="account">
+            aria-haspopup="dialog" aria-expanded={accountOpen} aria-controls={accountOpen ? accountId : undefined} aria-label="Account menu" data-tour-target="account">
             <span aria-hidden="true">{initials}</span>
           </button>
-          {open === 'account' && (
-            <FloatingCard id={accountId} title="Account" triggerRef={accountTrigger} onClose={close} width={320}>
-              <div className="floating-card-account"><strong>{profile.name}</strong><small>{[roleLabel, profile.department || profile.kdf_area].filter(Boolean).join(' · ')}</small></div>
-              <div className="floating-card-actions">
-                <button type="button" onClick={() => go('security')}><ShieldCheck {...icon} /> Security & devices</button>
-                <button type="button" onClick={switchTheme}><ThemeIcon {...icon} /> {themeLabel}</button>
-                {canInstall && <button type="button" onClick={() => { close(); promptInstall(); }}><Download {...icon} /> Install app on this device</button>}
-                <button type="button" onClick={() => { close(); logout(); }}><LogOut {...icon} /> Sign out</button>
-              </div>
+          {accountOpen && (
+            <FloatingCard id={accountId} title={showInstall ? 'Install SICC Admin' : 'Account'} triggerRef={accountTrigger} onClose={close} width={320}>
+              {showInstall ? <InstallApp nativeAvailable={installStatus === 'native'} onClose={close} /> : (
+                <>
+                  <div className="floating-card-account"><strong>{profile.name}</strong><small>{[roleLabel, profile.department || profile.kdf_area].filter(Boolean).join(' · ')}</small></div>
+                  <div className="floating-card-actions">
+                    <button type="button" onClick={() => go('security')}><ShieldCheck {...icon} /> Security & devices</button>
+                    <button type="button" onClick={switchTheme}><ThemeIcon {...icon} /> {themeLabel}</button>
+                    {installStatus !== 'installed' && <button type="button" onClick={() => setOpen('install')}><Download {...icon} /> Install app on this device</button>}
+                    <button type="button" onClick={() => { close(); logout(); }}><LogOut {...icon} /> Sign out</button>
+                  </div>
+                </>
+              )}
             </FloatingCard>
           )}
         </header>
@@ -280,7 +300,7 @@ export default function Layout({ activeTab, setActiveTab, mobile, children }) {
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} pages={nav} onGo={go} onOpenMember={setMemberId} actions={actions} searchMembers={!redAccount} />
       {!redAccount && memberId && <MemberDrawer memberId={memberId} onClose={() => setMemberId(null)} />}
     </div>
-    {showWelcomeTour && <WelcomeTour key={profile.id} shellRef={shellRef} steps={welcomeTourSteps(nav, dockKeys, role, mobile)}
+    {!showInstall && showWelcomeTour && <WelcomeTour key={profile.id} shellRef={shellRef} steps={welcomeTourSteps(nav, dockKeys, role, mobile)}
       mobile={mobile} onDismiss={dismissWelcomeTour} />}
     </>
   );

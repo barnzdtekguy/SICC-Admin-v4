@@ -22,7 +22,7 @@ function mockApi(routes) {
 }
 const goto = path => window.history.pushState({}, '', path);
 
-beforeEach(() => { localStorage.clear(); goto('/'); });
+beforeEach(() => { localStorage.clear(); sessionStorage.clear(); goto('/'); });
 
 describe('routing and auth gates', () => {
   it('sends a signed-out visitor to the login page and remembers where they were going', async () => {
@@ -55,13 +55,24 @@ describe('routing and auth gates', () => {
     });
     goto('/login');
     render(<App />);
+    const installEvent = new Event('beforeinstallprompt', { cancelable: true });
+    const userChoice = Promise.resolve({ outcome: 'dismissed' });
+    Object.assign(installEvent, { prompt: vi.fn().mockResolvedValue(undefined), userChoice });
+    act(() => window.dispatchEvent(installEvent));
+    expect(installEvent.defaultPrevented).toBe(true);
+    expect(screen.queryByRole('dialog', { name: 'Install SICC Admin' })).toBeNull();
     await userEvent.type(await screen.findByLabelText('Email'), 'ada@test.local');
     await userEvent.click(screen.getByRole('button', { name: /next/i }));
     await userEvent.type(await screen.findByLabelText('Password'), 'Granite!Lantern-7731');
     await userEvent.click(screen.getByRole('button', { name: /log in$/i }));
     expect(await screen.findByRole('heading', { name: /two-step verification/i })).toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: 'Install SICC Admin' })).toBeNull();
     await userEvent.type(screen.getByLabelText(/authenticator code/i), '123456');
     await userEvent.click(screen.getByRole('button', { name: /verify and sign in/i }));
+    const installCard = await screen.findByRole('dialog', { name: 'Install SICC Admin' });
+    await userEvent.click(within(installCard).getByRole('button', { name: 'Install app' }));
+    expect(installEvent.prompt).toHaveBeenCalledOnce();
+    await waitFor(() => expect(installCard).not.toBeInTheDocument());
     expect(await screen.findByRole('heading', { name: /Ada\./ })).toBeInTheDocument(); // "Good morning, Ada." (title stripped)
     expect(window.location.pathname).toBe('/app/overview');
     expect(calls.find(c => c.path === '/auth/mfa/verify').body).toEqual({ challenge: 'challenge-token', code: '123456' });
@@ -106,6 +117,44 @@ describe('routing and auth gates', () => {
     revoked = true;
     act(() => window.dispatchEvent(new CustomEvent('sicc:unauthorized', { detail: 'Your session has ended. Please sign in again.' })));
     expect(await screen.findByText(/your session has ended/i)).toBeInTheDocument();
+  });
+});
+
+describe('app installation', () => {
+  it('shows iPhone setup steps and lets users reopen them after dismissing the card', async () => {
+    vi.spyOn(navigator, 'userAgent', 'get').mockReturnValue('Mozilla/5.0 (iPhone)');
+    mockApi({ '/auth/me': session() });
+    goto('/app/overview');
+    const firstVisit = render(<App />);
+    const card = await screen.findByRole('dialog', { name: 'Install SICC Admin' });
+    expect(within(card).getByText('Add to Home Screen')).toBeInTheDocument();
+    await userEvent.click(within(card).getByRole('button', { name: 'Not now' }));
+    expect(card).not.toBeInTheDocument();
+
+    firstVisit.unmount();
+    render(<App />);
+    const account = await screen.findByRole('button', { name: 'Account menu' });
+    expect(screen.queryByRole('dialog', { name: 'Install SICC Admin' })).toBeNull();
+    await userEvent.click(account);
+    await userEvent.click(screen.getByRole('button', { name: 'Install app on this device' }));
+    const reopened = await screen.findByRole('dialog', { name: 'Install SICC Admin' });
+    expect(within(reopened).getByText('Add to Home Screen')).toBeInTheDocument();
+    await userEvent.keyboard('{Escape}');
+    expect(reopened).not.toBeInTheDocument();
+    expect(account).toHaveFocus();
+  });
+
+  it('skips the install offer when SICC Admin opens as an installed app', async () => {
+    vi.spyOn(window, 'matchMedia').mockImplementation(query => ({
+      matches: query === '(display-mode: standalone)', addEventListener() {}, removeEventListener() {},
+    }));
+    mockApi({ '/auth/me': session() });
+    goto('/app/overview');
+    render(<App />);
+    await userEvent.click(await screen.findByRole('button', { name: 'Account menu' }));
+    expect(await screen.findByRole('dialog', { name: 'Account' })).toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: 'Install SICC Admin' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Install app on this device' })).toBeNull();
   });
 });
 

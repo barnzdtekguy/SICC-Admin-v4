@@ -2,24 +2,59 @@
 import { apiRequest } from './api';
 
 let deferredPrompt = null;
+let installed = false;
 const listeners = new Set();
+const standalone = '(display-mode: standalone)';
+const notifyInstallChange = () => listeners.forEach(listener => listener());
 
 export function registerServiceWorker() {
   if (!('serviceWorker' in navigator) || import.meta.env.DEV) return;
   window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js').catch(error => console.warn('Service worker failed:', error)));
 }
 
-window.addEventListener('beforeinstallprompt', event => { event.preventDefault(); deferredPrompt = event; listeners.forEach(fn => fn(true)); });
-window.addEventListener('appinstalled', () => { deferredPrompt = null; listeners.forEach(fn => fn(false)); });
+window.addEventListener('beforeinstallprompt', event => {
+  event.preventDefault();
+  deferredPrompt = event;
+  notifyInstallChange();
+});
+window.addEventListener('appinstalled', () => {
+  installed = true;
+  deferredPrompt = null;
+  notifyInstallChange();
+});
 
-export const canInstall = () => Boolean(deferredPrompt);
-export const onInstallAvailable = fn => { listeners.add(fn); fn(Boolean(deferredPrompt)); return () => listeners.delete(fn); };
-export const isStandalone = () => window.matchMedia?.('(display-mode: standalone)').matches || window.navigator.standalone === true;
+export const isStandalone = () => Boolean(window.matchMedia?.(standalone)?.matches || navigator.standalone === true);
+export const canInstall = () => getInstallStatus() === 'native';
+
+export function getInstallStatus() {
+  if (installed || isStandalone()) return 'installed';
+  return deferredPrompt ? 'native' : 'manual';
+}
+
+export function subscribeToInstallStatus(listener) {
+  const displayMode = window.matchMedia?.(standalone);
+  listeners.add(listener);
+  displayMode?.addEventListener('change', listener);
+  return () => {
+    listeners.delete(listener);
+    displayMode?.removeEventListener('change', listener);
+  };
+}
+
 export async function promptInstall() {
-  if (!deferredPrompt) return false;
-  deferredPrompt.prompt();
-  const { outcome } = await deferredPrompt.userChoice;
-  deferredPrompt = null; listeners.forEach(fn => fn(false));
+  const prompt = deferredPrompt;
+  if (!prompt) return null;
+  deferredPrompt = null;
+  try {
+    await prompt.prompt();
+  } finally {
+    notifyInstallChange();
+  }
+  const { outcome } = await prompt.userChoice;
+  if (outcome === 'accepted') {
+    installed = true;
+    notifyInstallChange();
+  }
   return outcome === 'accepted';
 }
 

@@ -16,6 +16,11 @@ const roles = [
 
 const reply = (data, status = 200) => new Response(JSON.stringify(status < 400 ? { data } : data), { status });
 const visit = path => window.history.replaceState({}, '', path);
+async function dismissInstallCard() {
+  const card = await screen.findByRole('dialog', { name: 'Install SICC Admin' });
+  expect(screen.getByRole('button', { name: 'Account menu' })).toHaveAttribute('aria-controls', card.id);
+  fireEvent.click(within(card).getByRole('button', { name: 'Not now' }));
+}
 
 function stubSession(role, { pending = true, restrictions = [] } = {}) {
   const id = `tour-test-${role}`;
@@ -40,7 +45,7 @@ function stubSession(role, { pending = true, restrictions = [] } = {}) {
   return { id, calls, state };
 }
 
-beforeEach(() => { localStorage.clear(); visit('/app/security'); });
+beforeEach(() => { localStorage.clear(); sessionStorage.clear(); visit('/app/security'); });
 afterEach(() => { vi.unstubAllGlobals(); });
 
 describe('the welcome tour', () => {
@@ -49,6 +54,7 @@ describe('the welcome tour', () => {
     const mobile = ['admin', 'pastor', 'kdf_coordinator', 'red_member'].includes(role);
     vi.spyOn(window, 'matchMedia').mockImplementation(query => ({ matches: mobile && query.includes('max-width'), addEventListener() {}, removeEventListener() {} }));
     render(<App />);
+    await dismissInstallCard();
 
     const guide = within(await screen.findByRole('dialog', { name: 'Welcome tour' }));
     expect(guide.getByRole('heading')).toHaveTextContent('Welcome to SICC Admin');
@@ -86,6 +92,7 @@ describe('the welcome tour', () => {
   it.each(['Skip tour', 'Finish'])('keeps the tour dismissed at the next sign-in after %s', async action => {
     const { state } = stubSession('red_member');
     const first = render(<App />);
+    await dismissInstallCard();
     const guide = within(await screen.findByRole('dialog', { name: 'Welcome tour' }));
     if (action === 'Finish') {
       for (let i = 0; i < navigationFor({ role: 'red_member' }).length + 2; i += 1) fireEvent.click(guide.getByRole('button', { name: 'Next' }));
@@ -104,6 +111,7 @@ it('waits for required security setup and validates the new password before send
   const { calls } = stubSession('bishop', { restrictions: ['password_change'] });
   render(<App />);
   expect(await screen.findByRole('heading', { name: 'Choose a new password' })).toBeInTheDocument();
+  expect(screen.queryByRole('dialog', { name: 'Install SICC Admin' })).toBeNull();
   expect(screen.queryByRole('dialog', { name: 'Welcome tour' })).toBeNull();
   const current = screen.getByLabelText(/^Temporary password/);
   const next = screen.getByLabelText(/^New password/);
@@ -117,6 +125,7 @@ it('waits for required security setup and validates the new password before send
   fireEvent.change(next, { target: { value: 'ABCD12!Z' } });
   fireEvent.change(confirm, { target: { value: 'ABCD12!Z' } });
   fireEvent.click(screen.getByRole('button', { name: 'Change password' }));
+  await dismissInstallCard();
   expect(await screen.findByRole('dialog', { name: 'Welcome tour' })).toBeInTheDocument();
   expect(calls.find(call => call.url === '/api/auth/password').body.new_password).toBe('ABCD12!Z');
 });
