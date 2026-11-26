@@ -11,7 +11,15 @@ const teamInvite = '/public/red/team-invites';
 const tokenOf = data => data.path.split('#')[1];
 const newPhone = () => `080${crypto.randomInt(10000000, 100000000)}`;
 const signup = (name, extra = {}) => ({ name, phone: newPhone(), password: h.PASSWORD, ...extra });
-const accept = (agent, prefix, token, fields) => h.api(agent, 'post', `${prefix}/accept`, { token, ...fields });
+const accept = async (agent, prefix, token, fields) => {
+  const res = await h.api(agent, 'post', `${prefix}/accept`, { token, ...fields });
+  if (res.status === 201) {
+    assert.deepEqual(res.body.data.restrictions, ['pin_setup']);
+    assert.equal((await h.api(agent, 'get', '/red/team')).body.code, 'pin_setup');
+    await h.completePinSetup(agent);
+  }
+  return res;
+};
 const inspect = (agent, prefix, token) => h.api(agent, 'post', `${prefix}/inspect`, { token });
 const dataOf = (res, status = 200) => { assert.equal(res.status, status, JSON.stringify(res.body)); return res.body.data; };
 const invalidShape = res => { assert.equal(res.status, 404); return { error: res.body.error, code: res.body.code }; };
@@ -80,7 +88,6 @@ test('leader invites hash tokens, count declines, and grant the final place only
   leaderInfo = { ...dataOf(results[winner], 201).profile, localPhone: forms[winner].phone };
   assert.equal(leaderInfo.role, 'red_leader');
   assert.equal(leaderInfo.email, null);
-  assert.deepEqual(results[winner].body.data.restrictions, []);
   assert.equal(dataOf(await h.api(leader, 'get', '/auth/me')).profile.id, leaderInfo.id);
   team = dataOf(await h.api(leader, 'get', '/red/team'));
   assert.equal(team.joined, 1);

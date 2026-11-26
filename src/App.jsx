@@ -12,6 +12,7 @@ import Layout, { navigationFor } from './components/shared/Layout';
 const ChurchMembers = lazy(() => import('./components/shared/ChurchMembers'));
 const LandingPage = lazy(() => import('./components/LandingPage'));
 const LoginPage = lazy(() => import('./components/auth/LoginPage'));
+const PinUnlock = lazy(() => import('./components/auth/PinUnlock'));
 const SecurityGate = lazy(() => import('./components/security/SecurityGate'));
 const BishopDashboard = lazy(() => import('./components/bishop/BishopDashboard'));
 const AdminDashboard = lazy(() => import('./components/admin/AdminDashboard'));
@@ -48,17 +49,22 @@ function Splash() {
 }
 
 function Landing() {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, quickAvailable } = useAuth();
   const navigate = useNavigate();
   if (isAuthenticated) return <Navigate to="/app/overview" replace />;
+  if (quickAvailable) return <Navigate to="/login" replace />;
   return <LandingPage onEnter={() => navigate('/login')} />;
 }
 
 function Login() {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, quickAvailable, mfaChallenge, restrictions } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  if (isAuthenticated) return <Navigate to={location.state?.from || '/app/overview'} replace />;
+  const params = new URLSearchParams(location.search);
+  const pinIntent = params.get('pin');
+  const settingsIntent = ['change', 'reset', 'trust'].includes(pinIntent) && !restrictions.includes('pin_setup');
+  if (isAuthenticated) return <Navigate to={settingsIntent ? `/app/security?pin=${pinIntent}` : location.state?.from || '/app/overview'} replace />;
+  if (quickAvailable && !mfaChallenge && params.get('password') !== '1') return <PinUnlock />;
   return <LoginPage onBack={() => navigate('/')} />;
 }
 

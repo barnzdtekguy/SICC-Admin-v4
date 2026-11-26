@@ -49,7 +49,20 @@ async function login(user, { password = user.password, rememberMe = false } = {}
   return { agent, res: second };
 }
 
-async function loginAgent(user) { const { agent, res } = await login(user); if (res.status !== 200) throw new Error(`login failed: ${res.status} ${JSON.stringify(res.body)}`); return agent; }
+const testPin = () => String(crypto.randomInt(10000)).padStart(4, '0');
+
+async function completePinSetup(agent, pin = testPin()) {
+  const res = await api(agent, 'post', '/auth/quick-login/pin', { action: 'setup', pin, confirmPin: pin });
+  if (res.status !== 200) throw new Error(`PIN setup failed: ${res.status} ${res.body.error || ''}`);
+  return res;
+}
+
+async function loginAgent(user) {
+  const { agent, res } = await login(user);
+  if (res.status !== 200) throw new Error(`login failed: ${res.status} ${res.body.error || ''}`);
+  if (res.body.data.restrictions?.join() === 'pin_setup') await completePinSetup(agent);
+  return agent;
+}
 
 // Test databases only: attendance has unique keys, so clear it between runs.
 async function resetAttendance() {
@@ -60,4 +73,4 @@ async function resetAttendance() {
 
 async function close() { await pool.end(); }
 
-module.exports = { resetAttendance, setup, makeUser, login, loginAgent, api, uniq, close, PASSWORD, request, getApp: () => app };
+module.exports = { resetAttendance, setup, makeUser, login, loginAgent, completePinSetup, testPin, api, uniq, close, PASSWORD, request, getApp: () => app };

@@ -1,0 +1,66 @@
+.quick-login-page {
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  min-height: 100vh;
+  min-height: 100dvh;
+  padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right))
+    max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
+  background: var(--page);
+}
+
+.quick-login-card {
+  width: min(100%, 416px);
+  padding: clamp(16px, 5vw, 28px);
+  border: 1px solid var(--line);
+  border-radius: 24px;
+  background: var(--card);
+  color: var(--text);
+  box-shadow: var(--shadow-2);
+  text-align: center;
+  animation: rise var(--ui-motion);
+}
+.quick-login-brand { display: grid; justify-items: center; gap: 8px; margin-bottom: 12px; }
+.quick-login-brand img { display: block; object-fit: contain; }
+.quick-login-brand p { color: var(--muted); font-size: 11px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; }
+.quick-login-card h1 { font-size: clamp(30px, 8vw, 44px); line-height: 1.08; }
+.quick-login-intro { margin: 8px 0 16px; color: var(--muted); }
+.quick-login-fields, .quick-login-settings { display: grid; gap: 12px; min-width: 0; }
+.quick-login-fields { text-align: start; }
+.quick-login-actions, .quick-login-links { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.quick-login-links { justify-content: center; margin-top: 8px; }
+.quick-login-links a { display: inline-flex; align-items: center; min-height: 44px; padding: 4px 6px; color: var(--focus); font-weight: 600; }
+
+.quick-pin-indicators { display: flex; justify-content: center; gap: 13px; padding: 10px; border-radius: 10px; }
+.quick-pin-indicators > span[aria-hidden] { width: 13px; height: 13px; border: 1px solid var(--focus); border-radius: 50%; transition: background var(--ui-motion); }
+.quick-pin-indicators > [data-filled='true'] { background: var(--focus); }
+.quick-pin-keypad { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.quick-pin-keypad button {
+  display: grid;
+  place-items: center;
+  min-height: 48px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--field-bg);
+  color: var(--text);
+  font-size: 21px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  transition: background var(--ui-motion);
+}
+.quick-pin-keypad button:hover:not(:disabled) { background: var(--hover); }
+.quick-pin-keypad button:disabled { opacity: .55; }
+.quick-pin-zero { grid-column: 2; }
+.quick-login-device-list { list-style: none; display: grid; gap: 8px; }
+.quick-login-device-list li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+}
+.quick-login-device-list strong { overflow-wrap: anywhere; }
+.quick-login-device-list small { display: block; color: var(--muted); }

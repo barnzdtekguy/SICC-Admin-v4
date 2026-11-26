@@ -1,11 +1,13 @@
 'use strict';
 const express = require('express');
 const jwt = require('jsonwebtoken');
-const { query } = require('../db');
+const { query, queryOn, transaction } = require('../db');
 const { config } = require('../config');
 const { asyncRoute, HttpError, sendData } = require('../http');
 const { authenticate, enforceRestrictions, requirePerm } = require('../middleware');
-const { COOKIE_NAME, cookieOptions, createSession, signChallenge, verifyChallenge, revokeSession, revokeAllForUser, listSessions } = require('../lib/sessions');
+const { COOKIE_NAME, cookieOptions, createSession, signChallenge, verifyChallenge, revokeSession, revokeAllForUser, revokeTrustedDevices, listSessions } = require('../lib/sessions');
+const { credentialState } = require('../lib/auth-policy');
+const { verifySecondFactor } = require('../lib/second-factor');
 const { validatePassword, hashPassword, verifyPassword, verifyLoginPassword } = require('../lib/password');
 const totp = require('../lib/totp');
 const { encrypt, decrypt } = require('../lib/crypto');
@@ -16,6 +18,7 @@ const { sessionPayload } = require('../lib/session-response');
 const { normalizePhoneLogin } = require('../lib/phone-login');
 
 const router = express.Router();
+router.use('/quick-login', require('./quick-login'));
 const self = [authenticate, requirePerm('account.self')];
 const unknownFailures = new Map(); // identifier -> { n, until }  (same lockout behaviour for accounts that do not exist)
 const sqlTime = d => new Date(d).toISOString().slice(0, 19).replace('T', ' ');
@@ -48,11 +51,17 @@ async function registerFailure(profile, req, identifier, why) {
 }
 
 async function completeLogin(req, res, profile, { remember, mfaPassed }) {
-  const session = await createSession(profile, { remember, ip: req.ip, userAgent: req.get('user-agent'), mfaPassed });
-  await query('UPDATE profiles SET failed_logins = 0, locked_until = NULL, last_login_at = CURRENT_TIMESTAMP, last_login_ip = ? WHERE id = ?', [String(req.ip || '').slice(0, 64), profile.id]);
+  const result = await transaction(async connection => {
+    const [current] = await queryOn(connection, 'SELECT * FROM profiles WHERE id = ? FOR UPDATE', [profile.id]);
+    if (!current?.is_active || !credentialState(current).equals(credentialState(profile))) throw new HttpError(401, 'Please sign in again.');
+    const established = await createSession(current, { remember, ip: req.ip, userAgent: req.get('user-agent'), mfaPassed }, connection);
+    await queryOn(connection, 'UPDATE profiles SET failed_logins = 0, locked_until = NULL, last_login_at = CURRENT_TIMESTAMP, last_login_ip = ? WHERE id = ?', [String(req.ip || '').slice(0, 64), profile.id]);
+    return { session: established, profile: current };
+  });
+  const { session } = result;
   res.cookie(COOKIE_NAME, session.token, cookieOptions(session.ttl));
   await audit(req, { action: 'auth.login', entity_type: 'profile', entity_id: profile.id, detail: mfaPassed ? 'Signed in with two-factor' : 'Signed in', actor: { id: profile.id, name: profile.name, role: profile.role } });
-  return session;
+  return result;
 }
 
 router.post('/login', asyncRoute(async (req, res) => {
@@ -80,10 +89,10 @@ router.post('/login', asyncRoute(async (req, res) => {
     throw new HttpError(401, GENERIC);
   }
   if (profile.mfa_enabled) {
-    return sendData(res, { mfa_required: true, challenge: signChallenge(profile.id, remember) });
+    return sendData(res, { mfa_required: true, challenge: signChallenge(profile, remember) });
   }
-  const session = await completeLogin(req, res, profile, { remember, mfaPassed: false });
-  return sendData(res, sessionPayload(profile, { expires_at: session.expires, remember }));
+  const login = await completeLogin(req, res, profile, { remember, mfaPassed: false });
+  return sendData(res, sessionPayload(login.profile, login.session));
 }));
 
 router.post('/mfa/verify', asyncRoute(async (req, res) => {
@@ -94,28 +103,17 @@ router.post('/mfa/verify', asyncRoute(async (req, res) => {
   }
   const rows = await query('SELECT * FROM profiles WHERE id = ? LIMIT 1', [payload.sub]);
   const profile = rows[0];
-  if (!profile || !profile.is_active || !profile.mfa_enabled) throw new HttpError(401, 'Sign in again.');
+  if (!profile?.is_active || !profile.mfa_enabled || credentialState(profile).toString('base64url') !== payload.state) throw new HttpError(401, 'Your sign-in step expired. Enter your password again.');
   if (profile.locked_until && new Date(`${profile.locked_until.replace(' ', 'T')}Z`) > new Date()) {
     throw new HttpError(429, lockedMessage(new Date(`${profile.locked_until.replace(' ', 'T')}Z`).getTime()));
   }
-  const code = String(req.body?.code || '').trim();
-  let good = false;
-  if (/^\d{3}\s?\d{3}$/.test(code)) {
-    const step = totp.verifyTotp(decrypt(profile.mfa_secret_enc), code, { lastStep: profile.mfa_last_step });
-    if (step !== null) { good = true; await query('UPDATE profiles SET mfa_last_step = ? WHERE id = ?', [step, profile.id]); }
-  } else if (code) {
-    const hashes = JSON.parse(profile.mfa_recovery_hashes || '[]');
-    for (let i = 0; i < hashes.length && !good; i += 1) {
-      if (await bcrypt.compare(code.toLowerCase(), hashes[i])) {
-        good = true; hashes.splice(i, 1);
-        await query('UPDATE profiles SET mfa_recovery_hashes = ? WHERE id = ?', [JSON.stringify(hashes), profile.id]);
-        await audit(req, { action: 'auth.recovery_code_used', entity_type: 'profile', entity_id: profile.id, detail: `${hashes.length} recovery codes left`, actor: { id: profile.id, name: profile.name, role: profile.role } });
-      }
-    }
+  const verification = await verifySecondFactor(profile, req.body?.code);
+  if (!verification) { await registerFailure(profile, req, profile.email, 'bad two-factor code'); throw new HttpError(401, 'That code is not valid. Check your authenticator app and try again.'); }
+  if (verification.recoveryRemaining !== undefined) {
+    await audit(req, { action: 'auth.recovery_code_used', entity_type: 'profile', entity_id: profile.id, detail: `${verification.recoveryRemaining} recovery codes left`, actor: { id: profile.id, name: profile.name, role: profile.role } });
   }
-  if (!good) { await registerFailure(profile, req, profile.email, 'bad two-factor code'); throw new HttpError(401, 'That code is not valid. Check your authenticator app and try again.'); }
-  const session = await completeLogin(req, res, profile, { remember: Boolean(payload.rem), mfaPassed: true });
-  return sendData(res, sessionPayload(profile, { expires_at: session.expires, remember: Boolean(payload.rem) }));
+  const login = await completeLogin(req, res, profile, { remember: Boolean(payload.rem), mfaPassed: true });
+  return sendData(res, sessionPayload(login.profile, login.session));
 }));
 
 router.get('/me', ...self, (req, res) => sendData(res, sessionPayload(req.profile, req.session)));
@@ -169,6 +167,7 @@ router.post('/mfa/enable', ...self, asyncRoute(async (req, res) => {
   const codes = totp.generateRecoveryCodes(8);
   const hashes = await Promise.all(codes.map(c => bcrypt.hash(c, 10)));
   await query('UPDATE profiles SET mfa_enabled = 1, mfa_secret_enc = ?, mfa_pending_secret_enc = NULL, mfa_recovery_hashes = ?, mfa_last_step = ? WHERE id = ?', [pending, JSON.stringify(hashes), step, req.profile.id]);
+  await query('UPDATE sessions SET mfa_passed = 1 WHERE id = ?', [req.session.id]);
   await revokeAllForUser(req.profile.id, req.session.id, 'mfa_enabled');
   await audit(req, { action: 'auth.mfa_enabled', entity_type: 'profile', entity_id: req.profile.id });
   sendData(res, { recovery_codes: codes });
@@ -180,6 +179,7 @@ router.post('/mfa/disable', ...self, asyncRoute(async (req, res) => {
   const step = totp.verifyTotp(decrypt(req.profile.mfa_secret_enc), req.body?.code, { lastStep: req.profile.mfa_last_step });
   if (step === null) throw new HttpError(400, 'That code is not valid.');
   await query('UPDATE profiles SET mfa_enabled = 0, mfa_secret_enc = NULL, mfa_recovery_hashes = NULL, mfa_last_step = NULL WHERE id = ?', [req.profile.id]);
+  await revokeTrustedDevices(req.profile.id, 'mfa_disabled', null, req.session.id);
   await audit(req, { action: 'auth.mfa_disabled', entity_type: 'profile', entity_id: req.profile.id });
   sendData(res, { success: true });
 }));

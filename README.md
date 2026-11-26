@@ -29,6 +29,8 @@ npm run test:ui   # UI tests (routing, 2FA flow, forced setup, components)
 npm run lint
 ```
 
+After building, run `node scripts/tests/quick-login-layout.mjs "<path-to-Chrome-or-Edge>"` to check the PIN setup and unlock layouts at mobile and desktop widths with a local browser.
+
 ## Scripts
 | Command | Purpose |
 |---|---|

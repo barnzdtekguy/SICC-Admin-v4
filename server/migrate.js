@@ -332,6 +332,38 @@ const migrations = [
       await query("INSERT IGNORE INTO app_settings (setting_key) VALUES ('church_directory_lock')");
     },
   },
+  {
+    id: '017_quick_login',
+    up: async () => {
+      await addColumn('profiles', 'quick_pin_hash', 'VARCHAR(128) NULL');
+      await addColumn('profiles', 'quick_pin_set_at', 'DATETIME NULL');
+      await addColumn('profiles', 'quick_pin_failures', 'TINYINT UNSIGNED NOT NULL DEFAULT 0');
+      await addColumn('profiles', 'quick_pin_failure_at', 'DATETIME NULL');
+      await addColumn('sessions', 'full_auth_at', 'DATETIME NULL');
+      await addColumn('sessions', 'quick_device_id', 'CHAR(36) NULL');
+      await addIndex('sessions', 'sessions_quick_device_idx', 'quick_device_id, revoked_at');
+      await rawQuery(`CREATE TABLE IF NOT EXISTS quick_login_devices (
+        id CHAR(36) PRIMARY KEY,
+        user_id CHAR(36) NOT NULL,
+        token_hash BINARY(32) NOT NULL UNIQUE,
+        public_key VARBINARY(128) NOT NULL,
+        credential_state BINARY(32) NOT NULL,
+        user_agent VARCHAR(255) NULL,
+        enrolled_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        expires_at DATETIME NOT NULL,
+        last_used_at DATETIME NULL,
+        revoked_at DATETIME NULL,
+        suspended_at DATETIME NULL,
+        failed_attempts TINYINT UNSIGNED NOT NULL DEFAULT 0,
+        failure_at DATETIME NULL,
+        challenge_hash BINARY(32) NULL,
+        challenge_expires_at DATETIME NULL,
+        challenge_purpose VARCHAR(8) NULL,
+        INDEX quick_login_user_idx (user_id, revoked_at),
+        CONSTRAINT quick_login_user_fk FOREIGN KEY (user_id) REFERENCES profiles(id) ON DELETE CASCADE
+      ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`);
+    },
+  },
 ];
 
 // Belt and braces: block edits/deletes of audit rows at the database level where the host allows triggers.

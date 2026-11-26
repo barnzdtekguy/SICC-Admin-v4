@@ -52,7 +52,7 @@ test('privileged roles must enrol MFA before using the API', async () => {
   const admin = await h.makeUser('admin', { mfa: false });
   const { agent, res } = await h.login(admin);
   assert.equal(res.status, 200);
-  assert.deepEqual(res.body.data.restrictions, ['mfa_setup']);
+  assert.deepEqual(res.body.data.restrictions, ['mfa_setup', 'pin_setup']);
   const blocked = await h.api(agent, 'get', '/members');
   assert.equal(blocked.status, 403); assert.equal(blocked.body.code, 'mfa_setup');
   const setup = await h.api(agent, 'post', '/auth/mfa/setup');
@@ -61,6 +61,8 @@ test('privileged roles must enrol MFA before using the API', async () => {
   assert.equal(bad.status, 400);
   const good = await h.api(agent, 'post', '/auth/mfa/enable', { code: totp.hotp(setup.body.data.secret, totp.stepFor()) });
   assert.equal(good.status, 200); assert.equal(good.body.data.recovery_codes.length, 8);
+  assert.equal((await h.api(agent, 'get', '/members')).body.code, 'pin_setup');
+  await h.completePinSetup(agent);
   assert.equal((await h.api(agent, 'get', '/members')).status, 200);
   assert.equal((await h.api(agent, 'post', '/auth/mfa/disable', { password: admin.password, code: '123456' })).status, 403);
 });
@@ -79,13 +81,14 @@ test('MFA code cannot be replayed and recovery codes work once', async () => {
 test('forced password change gates the API, enforces the policy and kills other sessions', async () => {
   const user = await h.makeUser('pastor', { must_change: true });
   const { agent, res } = await h.login(user);
-  assert.deepEqual(res.body.data.restrictions, ['password_change']);
+  assert.deepEqual(res.body.data.restrictions, ['password_change', 'pin_setup']);
   assert.equal((await h.api(agent, 'get', '/members')).status, 403);
   const other = (await h.login(user)).agent;
   assert.equal((await h.api(agent, 'post', '/auth/password', { current_password: user.password, new_password: 'short' })).status, 400);
   assert.equal((await h.api(agent, 'post', '/auth/password', { current_password: user.password, new_password: 'password12345!' })).status, 400);
   const ok = await h.api(agent, 'post', '/auth/password', { current_password: user.password, new_password: 'ABCD12!Z' });
-  assert.equal(ok.status, 200); assert.deepEqual(ok.body.data.restrictions, []);
+  assert.equal(ok.status, 200); assert.deepEqual(ok.body.data.restrictions, ['pin_setup']);
+  await h.completePinSetup(agent);
   assert.equal((await h.login(user, { password: 'ABCD12!Z' })).res.status, 200);
   assert.equal((await h.api(agent, 'get', '/members')).status, 200);
   assert.equal((await h.api(other, 'get', '/auth/me')).status, 401, 'other session must be revoked');
@@ -98,7 +101,7 @@ test('an existing bcrypt password signs in without applying the new policy or fo
   await query('UPDATE profiles SET password_hash = ? WHERE id = ?', [await bcrypt.hash(oldPassword, 12), user.id]);
   const { res } = await h.login(user, { password: oldPassword });
   assert.equal(res.status, 200);
-  assert.deepEqual(res.body.data.restrictions, []);
+  assert.deepEqual(res.body.data.restrictions, ['pin_setup']);
 });
 
 test('welcome tour dismissal is saved for each role and can only change the current account', async () => {
@@ -109,6 +112,7 @@ test('welcome tour dismissal is saved for each role and can only change the curr
     assert.equal(res.status, 200, role);
     assert.equal(res.body.data.welcome_tour_pending, true, role);
     assert.equal(res.body.data.profile.welcome_tour_done_at, undefined);
+    await h.completePinSetup(agent);
     people.push({ person, agent });
   }
   assert.equal((await h.api(people[0].agent, 'post', '/auth/welcome-tour', { account_id: people[1].person.id })).status, 403);

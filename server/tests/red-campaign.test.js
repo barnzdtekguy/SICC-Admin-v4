@@ -17,6 +17,7 @@ let app, admin, bishop, leader, member, otherLeader, leaderProfile, memberProfil
 async function onboard(invite, kind, name) {
   const agent = h.request.agent(app);
   const signedIn = dataOf(await h.api(agent, 'post', `/public/red/${kind}-invites/accept`, { token: token(invite), name, phone: phone(), password: h.PASSWORD }), 201);
+  await h.completePinSetup(agent);
   return { agent, profile: signedIn.profile };
 }
 
@@ -299,6 +300,7 @@ test('a monthly report updates the church directory once and keeps campaign tota
   assert.equal(createdPastor.church_directory_access, true);
   const pastor = await h.loginAgent({ email, password: h.PASSWORD });
   dataOf(await h.api(pastor, 'post', '/auth/password', { current_password: h.PASSWORD, new_password: 'Change!Pebble-8112' }));
+  await h.completePinSetup(pastor);
   const otherPastor = await h.loginAgent(await h.makeUser('pastor'));
 
   const tag = h.uniq();

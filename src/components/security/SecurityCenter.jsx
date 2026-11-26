@@ -9,6 +9,7 @@ import { useToast } from '../shared/Toast';
 import { Panel, Btn, Input, Alert, Badge, Checkbox, PageHeader, Skeleton } from '../shared/UI';
 import { enablePush, disablePush, pushEnabled, pushSupported, canInstall, promptInstall, isStandalone } from '../../lib/pwa';
 import { PASSWORD_RULES, validatePassword } from '../../../shared/password-policy.mjs';
+import QuickLoginSettings from './QuickLoginSettings';
 
 export function PasswordForm({ onDone, forced }) {
   const toast = useToast();
@@ -155,6 +156,7 @@ export default function SecurityCenter() {
   return (
     <div style={{ display: 'grid', gap: 18, maxWidth: 860 }}>
       <PageHeader title="Security & devices" subtitle="Protect your account and manage where you are signed in." />
+      <QuickLoginSettings />
       <Panel title="Password"><PasswordForm /></Panel>
       <Panel title="Two-step verification" action={profile?.mfa_enabled ? <Badge label="On" color={C.success} /> : <Badge label="Off" color={C.warning} />}>
         {profile?.mfa_enabled

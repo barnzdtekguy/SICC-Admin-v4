@@ -1,6 +1,7 @@
 // End-to-end smoke test against a running server with a fresh, disposable database.
 //   BASE_URL=http://localhost:3001 BOOT_EMAIL=... BOOT_PASSWORD=... npm run test:smoke
 import { createRequire } from 'module';
+import { randomInt } from 'node:crypto';
 const require = createRequire(import.meta.url);
 const totp = require('../../server/lib/totp.js');
 const ROOT = process.env.BASE_URL || 'http://localhost:3001';
@@ -10,7 +11,8 @@ const BASE = `${ROOT}/api`;
 let cookie = '';
 const call = async (method, path, body) => {
   const r = await fetch(BASE + path, { method, headers: { 'Content-Type': 'application/json', 'X-SICC-Client': 'web', Cookie: cookie, Origin: ROOT }, body: body ? JSON.stringify(body) : undefined });
-  const sc = r.headers.get('set-cookie'); if (sc) cookie = sc.split(';')[0];
+  const sc = r.headers.getSetCookie().find(value => /^(?:__Host-)?sicc_session=/.test(value));
+  if (sc) cookie = sc.split(';')[0];
   let j = {}; try { j = await r.json(); } catch { /* not json */ }
   return { status: r.status, body: j, data: j.data };
 };
@@ -20,10 +22,14 @@ let r = await call('post', '/auth/login', { identifier: EMAIL, password: BOOT })
 ok('bootstrap Bishop can sign in', r.status === 200 && r.data.restrictions.includes('password_change') && r.data.restrictions.includes('mfa_setup'), JSON.stringify(r.body));
 r = await call('get', '/members'); ok('data is blocked until password changed', r.status === 403 && r.body.code === 'password_change');
 r = await call('post', '/auth/password', { current_password: BOOT, new_password: 'Velvet!Harbour-4420' });
-ok('password changed; mfa still required', r.status === 200 && r.data.restrictions.join() === 'mfa_setup', JSON.stringify(r.body));
+ok('password changed; MFA and PIN still required', r.status === 200 && r.data.restrictions.join() === 'mfa_setup,pin_setup');
 r = await call('post', '/auth/mfa/setup', {}); const secret = r.data.secret; ok('mfa setup returns secret + otpauth url', !!secret && r.data.otpauth_url.startsWith('otpauth://totp/'));
 r = await call('post', '/auth/mfa/enable', { code: totp.hotp(secret, totp.stepFor()) }); ok('mfa enabled with 8 recovery codes', r.status === 200 && r.data.recovery_codes.length === 8, JSON.stringify(r.body));
 const recovery = r.data.recovery_codes;
+r = await call('get', '/members'); ok('data is blocked until PIN setup', r.status === 403 && r.body.code === 'pin_setup');
+const pin = String(randomInt(10000)).padStart(4, '0');
+r = await call('post', '/auth/quick-login/pin', { action: 'setup', pin, confirmPin: pin });
+ok('PIN setup completes account activation', r.status === 200 && r.data.restrictions.length === 0);
 r = await call('get', '/members'); ok('API open after setup', r.status === 200);
 await call('post', '/auth/logout', {}); cookie = '';
 r = await call('post', '/auth/login', { identifier: EMAIL, password: 'Velvet!Harbour-4420' }); ok('login now asks for a code', r.data?.mfa_required === true);

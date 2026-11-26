@@ -5,7 +5,7 @@ const crypto = require('crypto');
 const { pool, query, int } = require('../db');
 
 const GENESIS = '0'.repeat(64);
-const SECRET_KEYS = /(password|hash|secret|token|api_key|recovery|mfa_)/i;
+const SECRET_KEYS = /(password|hash|secret|token|api_key|recovery|mfa_|(?:^|_)pin(?:_|$)|^confirmPin$|^proof$|^challenge$)/i;
 const THROTTLE = new Map();
 
 function redact(value) {

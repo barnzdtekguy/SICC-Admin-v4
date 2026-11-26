@@ -7,6 +7,7 @@ const { config } = require('./config');
 const { HttpError } = require('./http');
 const { can, canViewChurchDirectory } = require('./permissions');
 const { COOKIE_NAME, verifyToken } = require('./lib/sessions');
+const { accountRestrictions, quickMfaRequired } = require('./lib/auth-policy');
 const { alert } = require('./lib/alert');
 const jwt = require('jsonwebtoken');
 
@@ -94,12 +95,13 @@ async function authenticate(req, res, next) {
       throw e;
     }
     const rows = await query(
-      `SELECT s.id AS sid, s.remember, s.mfa_passed, s.expires_at, s.revoked_at, s.last_seen_at, p.*
+      `SELECT s.id AS sid, s.remember, s.mfa_passed, s.expires_at, s.revoked_at, s.last_seen_at, s.full_auth_at, s.quick_device_id, p.*
        FROM sessions s JOIN profiles p ON p.id = s.user_id WHERE s.id = ? AND s.user_id = ? LIMIT 1`, [payload.sid, payload.sub]);
     const row = rows[0];
     const fail = message => { res.clearCookie(COOKIE_NAME, { path: '/' }); throw new HttpError(401, message); };
     if (!row || row.revoked_at) return fail('Your session has ended. Please sign in again.');
     if (!row.is_active) return fail('Your account is inactive. Contact an administrator.');
+    if (row.quick_device_id && (quickMfaRequired(row) || row.mfa_enabled) && !row.mfa_passed) return fail('Your session has ended. Please sign in again.');
     if (new Date(`${row.expires_at.replace(' ', 'T')}Z`) < new Date()) return fail('Your session has expired. Please sign in again.');
     const seen = new Date(`${row.last_seen_at.replace(' ', 'T')}Z`).getTime();
     if (!row.remember && Date.now() - seen > config.session.idleMinutes * 60000) {
@@ -108,23 +110,23 @@ async function authenticate(req, res, next) {
     }
     if (Date.now() - seen > 60000) await query('UPDATE sessions SET last_seen_at = CURRENT_TIMESTAMP WHERE id = ?', [row.sid]);
 
-    const { sid, remember, mfa_passed, expires_at, revoked_at, last_seen_at, ...profile } = row;
+    const { sid, remember, mfa_passed, expires_at, revoked_at: _revokedAt, last_seen_at: _lastSeenAt, full_auth_at, quick_device_id: _quickDeviceId, ...profile } = row;
     req.profile = profile;
-    req.session = { id: sid, remember: Boolean(remember), expires_at };
-    req.restrictions = [];
-    if (profile.must_change_password) req.restrictions.push('password_change');
-    if (config.mfaRequiredRoles.includes(profile.role) && !profile.mfa_enabled) req.restrictions.push('mfa_setup');
+    req.session = { id: sid, remember: Boolean(remember), expires_at, full_auth_at, mfa_passed };
+    req.restrictions = accountRestrictions(profile, req.session);
     return next();
   } catch (error) { return next(error); }
 }
 
-// Blocks normal API use until a forced password change / mandatory MFA enrolment is complete.
+const restrictionMessages = {
+  password_change: 'You must change your temporary password before continuing.',
+  mfa_setup: 'Two-factor authentication must be set up before you can continue.',
+  pin_setup: 'Set up your Quick Login PIN before continuing.',
+};
+
 function enforceRestrictions(req, _res, next) {
-  if (req.restrictions?.length) {
-    return next(new HttpError(403, req.restrictions.includes('password_change')
-      ? 'You must change your temporary password before continuing.'
-      : 'Two-factor authentication must be set up before you can continue.', { code: req.restrictions[0] }));
-  }
+  const restriction = req.restrictions?.[0];
+  if (restriction) return next(new HttpError(403, restrictionMessages[restriction], { code: restriction }));
   return next();
 }
 const secured = [authenticate, enforceRestrictions];
@@ -139,6 +141,7 @@ function requirePerm(permission) {
 function publicProfile(profile) {
   const {
     password_hash, mfa_secret_enc, mfa_pending_secret_enc, mfa_recovery_hashes, mfa_last_step, failed_logins, locked_until,
+    quick_pin_hash: _pinHash, quick_pin_set_at: _pinSetAt, quick_pin_failures: _pinFailures, quick_pin_failure_at: _pinFailureAt,
     phone_login: _phoneLogin, red_phone_login: _redPhoneLogin, welcome_tour_done_at: _tourDoneAt, created_by_role: _creatorRole, ...safe
   } = profile;
   return { ...safe, church_directory_access: canViewChurchDirectory(profile), mfa_enabled: Boolean(profile.mfa_enabled), must_change_password: Boolean(profile.must_change_password), is_active: Boolean(profile.is_active) };

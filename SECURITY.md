@@ -24,6 +24,16 @@
 ## Reporting a problem
 Contact the developer privately. Do not post vulnerabilities publicly.
 
+## Quick Login
+
+New accounts and existing accounts at their next full sign-in must set a four-digit PIN after password activation and any required two-step verification. Signed-in sessions from before the update follow their existing expiry rules. Account permissions continue to come from the server.
+
+- On a personal device, choose **Trust this device** during PIN setup or under **Security & devices → Security & Quick Login**. The browser needs secure-context Web Crypto and IndexedDB. Trust lasts 30 days and can be removed from settings. Clearing the browser’s site data requires enrolling again.
+- The browser stores a non-exportable signing key in its local browser profile. The server requires a signed, expiring challenge and a separate HttpOnly enrollment cookie before verifying the PIN. This is browser-profile binding. Quick Login still requires the existing MFA step for accounts with two-step verification enabled.
+- PIN hashes use scrypt with a unique salt and a deployment-secret-derived pepper. The pepper comes from `DATA_ENCRYPTION_KEY` when configured, with the existing `JWT_SECRET` fallback. Changing the pepper invalidates existing PIN verification and requires password sign-in and PIN reset.
+- Five failed attempts within 15 minutes suspend that device until a fresh full sign-in and enrollment. The server also limits attempts across devices for the same account and by source IP. Device enrollment, revocation, failures, successful unlocks, and PIN changes or resets are audited.
+- Setting, changing, or resetting a PIN and trusting a device require a full sign-in within 15 minutes. PIN changes and resets revoke trusted devices and their Quick Login sessions. A password change or reset also revokes device trust.
+
 ## Your responsibilities checklist (10 minutes)
 - [ ] Rotated every secret that was ever shared (see UPGRADING.md step 1)
 - [ ] `JWT_SECRET` and `DATA_ENCRYPTION_KEY` are different random 64-byte values
